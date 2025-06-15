@@ -1,0 +1,45 @@
+# Ignore environment variables
+.env
+
+# Ignore data files
+data/
+*.csv
+*.parquet
+*.json
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Ignore Docker volumes
+volumes/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Ignore temporary files
+*.tmp
+*.temp
