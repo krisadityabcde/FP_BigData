@@ -43,9 +43,9 @@ This project implements a big data system for predicting hospital costs and leng
 - **Kafka UI**: `http://localhost:8080`
 
 ### MinIO Object Storage
-- **MinIO Console**: `http://localhost:9001`
+- **MinIO Console**: `http://localhost:9090`
 - **MinIO API**: `localhost:9000`
-- **Default Credentials**: `minioadmin` / `minioadmin123`
+- **Default Credentials**: `minioadmin` / `minioadmin`
 
 ### Data Pipeline
 - **Data Producer**: Downloads dataset and streams to Kafka
@@ -54,7 +54,7 @@ This project implements a big data system for predicting hospital costs and leng
 
 ## Monitoring
 - **Kafka UI**: `http://localhost:8080` - Monitor topics and messages
-- **MinIO Console**: `http://localhost:9001` - Monitor object storage
+- **MinIO Console**: `http://localhost:9090` - Monitor object storage
 - **Logs**: `docker-compose logs -f [service-name]`
 - **Storage Monitor**: `docker exec -it data-consumer python monitor.py`
 

@@ -43,7 +43,7 @@ echo ✅ Services started successfully!
 echo.
 echo 🌐 Available services:
 echo   - Kafka UI: http://localhost:8080
-echo   - MinIO Console: http://localhost:9001
+echo   - MinIO Console: http://localhost:9090
 echo.
 goto end
 
@@ -86,7 +86,7 @@ goto end
 
 :minio_ui
 echo 🌐 Opening MinIO Console...
-start http://localhost:9001
+start http://localhost:9090
 goto end
 
 :clean
