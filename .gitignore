@@ -1,5 +1,14 @@
 # Ignore environment variables
 .env
+.env.local
+.env.production
+*.env
+
+# Ignore sensitive files
+kaggle.json
+kaggle(*).json
+*.key
+*.pem
 
 # Ignore data files
 data/

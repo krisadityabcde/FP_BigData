@@ -84,7 +84,6 @@ services:
       - ./services/data-producer:/app
     networks:
       - bigdata-network
-
   # Data Consumer Service (Kafka to MinIO)
   data-consumer:
     build:
@@ -106,6 +105,35 @@ services:
       - ./services/data-consumer:/app
     networks:
       - bigdata-network
+  # DuckDB Query Service (Interactive Analytics)
+  duckdb-query:
+    build:
+      context: ./services/duckdb-query
+      dockerfile: Dockerfile
+    container_name: duckdb-query
+    depends_on:
+      - minio
+    ports:
+      - "8002:8002"  # FastAPI service
+      - "8501:8501"  # Streamlit interface
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      QUERY_SERVICE_HOST: 0.0.0.0
+      QUERY_SERVICE_PORT: 8002
+      STREAMLIT_HOST: 0.0.0.0
+      STREAMLIT_PORT: 8501
+    volumes:
+      - ./services/duckdb-query:/app
+    networks:
+      - bigdata-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   bigdata-network:

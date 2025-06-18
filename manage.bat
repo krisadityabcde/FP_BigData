@@ -11,6 +11,8 @@ if "%1"=="status" goto status
 if "%1"=="monitor" goto monitor
 if "%1"=="kafka-ui" goto kafka_ui
 if "%1"=="minio-ui" goto minio_ui
+if "%1"=="analytics" goto analytics
+if "%1"=="api" goto api
 if "%1"=="clean" goto clean
 
 echo ❌ Unknown command: %1
@@ -31,6 +33,8 @@ echo   status        Show status of all services
 echo   monitor       Monitor MinIO storage
 echo   kafka-ui      Open Kafka UI in browser
 echo   minio-ui      Open MinIO Console in browser
+echo   analytics     Open DuckDB Analytics Interface
+echo   api           Open DuckDB API documentation
 echo   clean         Clean up all data and volumes
 echo   help          Show this help message
 echo.
@@ -44,6 +48,8 @@ echo.
 echo 🌐 Available services:
 echo   - Kafka UI: http://localhost:8080
 echo   - MinIO Console: http://localhost:9090
+echo   - DuckDB Analytics: http://localhost:8501
+echo   - Query API: http://localhost:8002
 echo.
 goto end
 
@@ -87,6 +93,16 @@ goto end
 :minio_ui
 echo 🌐 Opening MinIO Console...
 start http://localhost:9090
+goto end
+
+:analytics
+echo 🦆 Opening DuckDB Analytics Interface...
+start http://localhost:8501
+goto end
+
+:api
+echo 📊 Opening DuckDB API Documentation...
+start http://localhost:8002/docs
 goto end
 
 :clean
