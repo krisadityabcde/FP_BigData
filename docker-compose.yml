@@ -66,6 +66,50 @@ services:
       - bigdata-network
     restart: unless-stopped
 
+  # Hive Metastore with MariaDB
+  # Using MariaDB as the backend for Hive Metastore
+  mariadb:
+    image: mariadb:10.6
+    container_name: hive-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: hive_metastore
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./scripts/init-hive-db.sql:/docker-entrypoint-initdb.d/init-hive-db.sql
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+
+  hive-metastore:
+    hostname: hive-metastore
+    image: 'bitsondatadev/hive-metastore:latest'
+    container_name: hive-metastore
+    ports:
+      - '9083:9083'
+    volumes:
+      - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+    environment:
+      METASTORE_DB_HOSTNAME: mariadb
+      METASTORE_DB_USERNAME: admin
+      METASTORE_DB_PASSWORD: admin
+      METASTORE_DB_NAME: hive_metastore
+      # Add MinIO environment variables
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_S3_ENDPOINT: http://minio:9000
+    depends_on:
+      - mariadb
+      - minio
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+
   # Data Producer Service
   data-producer:
     build:
@@ -124,6 +168,28 @@ services:
     networks:
       - bigdata-network
 
+  # Apache Hive Test Service
+  # Masih Testing Sabar Dlu
+  # hive-test:
+  #   build:
+  #     context: ./services/hive-test
+  #     dockerfile: Dockerfile
+  #   container_name: hive-test
+  #   depends_on:
+  #     - hive-metastore
+  #     - minio
+  #   environment:
+  #     HIVE_METASTORE_URI: thrift://hive-metastore:9083
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #   volumes:
+  #     - ./services/hive-test:/app
+  #   networks:
+  #     - bigdata-network
+  
+
+
 networks:
   bigdata-network:
     driver: bridge
@@ -132,3 +198,4 @@ volumes:
   kafka-data:
   zookeeper-data:
   minio-data:
+  mariadb_data:
