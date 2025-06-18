@@ -11,6 +11,7 @@ if "%1"=="status" goto status
 if "%1"=="monitor" goto monitor
 if "%1"=="kafka-ui" goto kafka_ui
 if "%1"=="minio-ui" goto minio_ui
+if "%1"=="streamlit" goto streamlit
 if "%1"=="clean" goto clean
 
 echo ❌ Unknown command: %1
@@ -31,6 +32,7 @@ echo   status        Show status of all services
 echo   monitor       Monitor MinIO storage
 echo   kafka-ui      Open Kafka UI in browser
 echo   minio-ui      Open MinIO Console in browser
+echo   streamlit     Open Streamlit Monitor in browser
 echo   clean         Clean up all data and volumes
 echo   help          Show this help message
 echo.
@@ -44,6 +46,7 @@ echo.
 echo 🌐 Available services:
 echo   - Kafka UI: http://localhost:8080
 echo   - MinIO Console: http://localhost:9090
+echo   - Streamlit Monitor: http://localhost:8501
 echo.
 goto end
 
@@ -87,6 +90,11 @@ goto end
 :minio_ui
 echo 🌐 Opening MinIO Console...
 start http://localhost:9090
+goto end
+
+:streamlit
+echo 🌐 Opening Streamlit Monitor...
+start http://localhost:8501
 goto end
 
 :clean

@@ -6,6 +6,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 from io import BytesIO
 import numpy as np
+import threading
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
@@ -41,6 +44,51 @@ class HospitalDataConsumer:
         self.message_batch = []
         self.last_save_time = datetime.now()
         
+        # Add progress tracking
+        self.stats = {
+            'total_messages': 0,
+            'total_batches': 0,
+            'current_batch_size': 0,
+            'last_message_time': None,
+            'start_time': datetime.now(),
+            'files_saved': {'json': 0, 'parquet': 0},
+            'errors': 0,
+            'status': 'initializing'
+        }
+        
+        # Flask app for API
+        self.app = Flask(__name__)
+        CORS(self.app)
+        self.setup_api_routes()
+    
+    def setup_api_routes(self):
+        """Setup REST API routes"""
+        @self.app.route('/api/stats', methods=['GET'])
+        def get_stats():
+            uptime = (datetime.now() - self.stats['start_time']).total_seconds()
+            messages_per_second = self.stats['total_messages'] / uptime if uptime > 0 else 0
+            
+            response = {
+                **self.stats,
+                'uptime_seconds': uptime,
+                'messages_per_second': round(messages_per_second, 2),
+                'last_message_time': self.stats['last_message_time'].isoformat() if self.stats['last_message_time'] else None
+            }
+            return jsonify(response)
+        
+        @self.app.route('/api/health', methods=['GET'])
+        def health_check():
+            return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+    
+    def start_api_server(self):
+        """Start Flask API server in a separate thread"""
+        def run_server():
+            self.app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+        
+        api_thread = threading.Thread(target=run_server, daemon=True)
+        api_thread.start()
+        logger.info("API server started on port 5000")
+    
     def initialize_kafka_consumer(self):
         """Initialize Kafka consumer with retry logic"""
         max_retries = 10
@@ -57,8 +105,8 @@ class HospitalDataConsumer:
                     auto_offset_reset='earliest',
                     enable_auto_commit=True,
                     auto_commit_interval_ms=1000,
-                    consumer_timeout_ms=10000
-                )
+                    heartbeat_interval_ms=10000,
+                    session_timeout_ms=30000,                )
                 logger.info(f"Successfully connected to Kafka at {self.kafka_servers}")
                 return True
             except Exception as e:
@@ -188,6 +236,11 @@ class HospitalDataConsumer:
                     content_type='application/octet-stream'
                 )
                 
+                # Update stats
+                self.stats['total_batches'] += 1
+                self.stats['files_saved']['json'] += 1
+                self.stats['files_saved']['parquet'] += 1
+                
                 logger.info(f"Saved batch {batch_id} with {len(batch_data)} records to MinIO (JSON & Parquet)")
                 
             except Exception as e:
@@ -219,6 +272,7 @@ class HospitalDataConsumer:
             
         except Exception as e:
             logger.error(f"Error saving batch to MinIO: {e}")
+            self.stats['errors'] += 1
     
     def should_save_batch(self):
         """Determine if current batch should be saved"""
@@ -244,6 +298,12 @@ class HospitalDataConsumer:
             # Add to batch
             self.message_batch.append(message_data)
             
+            # Update stats
+            self.stats['total_messages'] += 1
+            self.stats['current_batch_size'] = len(self.message_batch)
+            self.stats['last_message_time'] = datetime.now()
+            self.stats['status'] = 'consuming'
+            
             # Check if we should save the batch
             if self.should_save_batch():
                 batch_id = f"{int(time.time())}_{len(self.message_batch)}"
@@ -253,6 +313,7 @@ class HospitalDataConsumer:
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+            self.stats['errors'] += 1
     
     def consume_messages(self):
         """Main message consumption loop"""
@@ -301,8 +362,13 @@ class HospitalDataConsumer:
         """Main execution method"""
         logger.info("Starting Hospital Data Consumer...")
         
+        # Start API server
+        self.start_api_server()
+        
         # Wait for services to be ready
-        time.sleep(60)  # Give Kafka and MinIO time to start
+        time.sleep(60)
+        
+        self.stats['status'] = 'connecting'
         
         # Initialize connections
         if not self.initialize_kafka_consumer():
@@ -320,6 +386,8 @@ class HospitalDataConsumer:
         # Close consumer
         if self.consumer:
             self.consumer.close()
+        
+        self.stats['status'] = 'stopped'
         
         logger.info("Hospital Data Consumer finished")
         return True

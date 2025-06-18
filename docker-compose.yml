@@ -94,6 +94,8 @@ services:
     depends_on:
       - kafka
       - minio
+    ports:
+      - "5000:5000"  # Add port for REST API
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: hospital-data
@@ -104,6 +106,21 @@ services:
       MINIO_BUCKET: hospital-data
     volumes:
       - ./services/data-consumer:/app
+    networks:
+      - bigdata-network
+
+  # Streamlit Monitor Service
+  streamlit-monitor:
+    build:
+      context: ./services/streamlit-monitor
+      dockerfile: Dockerfile
+    container_name: streamlit-monitor
+    depends_on:
+      - data-consumer
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./services/streamlit-monitor:/app
     networks:
       - bigdata-network
 
