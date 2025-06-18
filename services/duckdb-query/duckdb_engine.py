@@ -116,7 +116,7 @@ def run_sample_queries():
         # Example 1: Query all data from a parquet file
         print("=== Sample Query 1: Select All Data ===")
         result1 = query_engine.query_parquet_from_minio(
-            bucket_name="data-lake",
+            bucket_name="hospital-data",
             file_path="processed/sample_data.parquet"
         )
         print(result1.head())

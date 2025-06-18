@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 import pandas as pd
+import numpy as np
 from duckdb_engine import DuckDBQueryEngine
 import logging
 from typing import Optional, Dict, Any
@@ -72,8 +73,7 @@ async def query_parquet(
     
     - **bucket_name**: MinIO bucket name
     - **file_path**: Path to Parquet file in bucket
-    - **query**: SQL query (use {table} as placeholder for the parquet file)
-    - **limit**: Maximum number of rows to return
+    - **query**: SQL query (use {table} as placeholder for the parquet file)    - **limit**: Maximum number of rows to return
     """
     try:
         if query is None:
@@ -84,11 +84,28 @@ async def query_parquet(
         result_df = query_engine.query_parquet_from_minio(
             bucket_name=bucket_name,
             file_path=file_path,
-            query=query
-        )
+            query=query        )
+        # Convert DataFrame to JSON with proper handling of NaN/infinity values
+        # Replace NaN and infinity values to make JSON compliant
+        import pandas as pd
+        import numpy as np
         
-        # Convert DataFrame to JSON
-        result_json = result_df.to_dict(orient='records')
+        # First replace infinity values with None
+        result_df_clean = result_df.replace([np.inf, -np.inf], None)
+        
+        # Then replace NaN values with None using where method
+        result_df_clean = result_df_clean.where(pd.notnull(result_df_clean), None)
+        
+        # Convert to dict with additional safety check
+        result_json = []
+        for _, row in result_df_clean.iterrows():
+            row_dict = {}
+            for col, val in row.items():
+                if pd.isna(val) or np.isinf(val) if isinstance(val, (int, float)) else False:
+                    row_dict[col] = None
+                else:
+                    row_dict[col] = val
+            result_json.append(row_dict)
         
         return {
             "status": "success",

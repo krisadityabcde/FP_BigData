@@ -312,26 +312,6 @@ def main():
                 "description": "Count total number of rows",
                 "query": "SELECT COUNT(*) as total_rows FROM {table}"
             },
-            {
-                "title": "Group By Analysis",
-                "description": "Group data by a column and count",
-                "query": "SELECT column_name, COUNT(*) as count FROM {table} GROUP BY column_name ORDER BY count DESC LIMIT 10"
-            },
-            {
-                "title": "Filtered Data",
-                "description": "Filter data based on conditions",
-                "query": "SELECT * FROM {table} WHERE column_name > 100 AND another_column IS NOT NULL LIMIT 50"
-            },
-            {
-                "title": "Statistical Summary",
-                "description": "Get basic statistics for numeric columns",
-                "query": "SELECT AVG(numeric_column) as avg_value, MIN(numeric_column) as min_value, MAX(numeric_column) as max_value FROM {table}"
-            },
-            {
-                "title": "Date Range Query",
-                "description": "Query data within a date range",
-                "query": "SELECT * FROM {table} WHERE date_column >= '2023-01-01' AND date_column <= '2023-12-31' LIMIT 100"
-            }
         ]
         
         for i, query_info in enumerate(sample_queries):
