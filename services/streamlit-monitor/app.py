@@ -46,6 +46,7 @@ def main():
     # Create placeholders for dynamic content
     status_placeholder = st.empty()
     metrics_placeholder = st.empty()
+    file_stats_placeholder = st.empty()
     charts_placeholder = st.empty()
     
     # Initialize session state for historical data
@@ -115,16 +116,38 @@ def main():
                         value=f"{stats['messages_per_second']:.1f}"
                     )
             
-            # File statistics
-            st.subheader("📁 Files Saved")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("JSON Files", stats['files_saved']['json'])
-            with col2:
-                st.metric("CSV Files", stats['files_saved']['csv'])
-            with col3:
-                st.metric("Errors", stats['errors'])
+            # Update file statistics
+            with file_stats_placeholder.container():
+                st.subheader("📊 File Statistics")
+                
+                # Create file statistics table
+                file_stats_data = {
+                    'Metric': ['JSON Files Saved', 'CSV Files Saved', 'Total Errors', 'Success Rate'],
+                    'Value': [
+                        f"{stats['files_saved']['json']:,}",
+                        f"{stats['files_saved']['csv']:,}",
+                        f"{stats['errors']:,}",
+                        f"{((stats['files_saved']['json'] + stats['files_saved']['csv']) / max(stats['total_batches'], 1) * 100):.1f}%"
+                    ],
+                    'Status': [
+                        '✅' if stats['files_saved']['json'] > 0 else '⚪',
+                        '✅' if stats['files_saved']['csv'] > 0 else '⚪',
+                        '🔴' if stats['errors'] > 0 else '✅',
+                        '✅' if stats['errors'] == 0 else ('🟡' if stats['errors'] < 5 else '🔴')
+                    ]
+                }
+                
+                file_stats_df = pd.DataFrame(file_stats_data)
+                st.dataframe(
+                    file_stats_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Metric": st.column_config.TextColumn("Metric", width="medium"),
+                        "Value": st.column_config.TextColumn("Value", width="medium"),
+                        "Status": st.column_config.TextColumn("Status", width="small")
+                    }
+                )
             
             # Add current stats to history
             current_time = datetime.now()
@@ -167,6 +190,59 @@ def main():
                         )
                         fig2.update_layout(height=300)
                         st.plotly_chart(fig2, use_container_width=True)
+                
+                # System Details Table
+                st.subheader("🔧 System Details")
+                system_details_data = {
+                    'Component': [
+                        'Consumer Status',
+                        'Total Messages Processed',
+                        'Total Batches Processed',
+                        'Current Batch Size',
+                        'Processing Rate',
+                        'System Uptime',
+                        'Last Message Received',
+                        'JSON Files Created',
+                        'CSV Files Created',
+                        'Error Count'
+                    ],
+                    'Value': [
+                        stats['status'].title(),
+                        f"{stats['total_messages']:,}",
+                        f"{stats['total_batches']:,}",
+                        f"{stats['current_batch_size']:,}",
+                        f"{stats['messages_per_second']:.2f} msg/sec",
+                        format_uptime(stats['uptime_seconds']),
+                        datetime.fromisoformat(stats['last_message_time']).strftime('%Y-%m-%d %H:%M:%S') if stats['last_message_time'] else 'Never',
+                        f"{stats['files_saved']['json']:,}",
+                        f"{stats['files_saved']['csv']:,}",
+                        f"{stats['errors']:,}"
+                    ],
+                    'Health': [
+                        '🟢' if stats['status'] == 'running' else ('🟡' if stats['status'] in ['initializing', 'connecting'] else '🔴'),
+                        '🟢' if stats['total_messages'] > 0 else '⚪',
+                        '🟢' if stats['total_batches'] > 0 else '⚪',
+                        '🟢' if stats['current_batch_size'] > 0 else '⚪',
+                        '🟢' if stats['messages_per_second'] > 0 else '⚪',
+                        '🟢' if stats['uptime_seconds'] > 0 else '⚪',
+                        '🟢' if stats['last_message_time'] and (datetime.now() - datetime.fromisoformat(stats['last_message_time'])).total_seconds() < 30 else '🟡',
+                        '🟢' if stats['files_saved']['json'] > 0 else '⚪',
+                        '🟢' if stats['files_saved']['csv'] > 0 else '⚪',
+                        '🟢' if stats['errors'] == 0 else '🔴'
+                    ]
+                }
+                
+                system_df = pd.DataFrame(system_details_data)
+                st.dataframe(
+                    system_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Component": st.column_config.TextColumn("Component", width="medium"),
+                        "Value": st.column_config.TextColumn("Value", width="large"),
+                        "Health": st.column_config.TextColumn("Health", width="small")
+                    }
+                )
         
         else:
             with status_placeholder.container():
