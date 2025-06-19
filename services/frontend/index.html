@@ -421,7 +421,8 @@
         const SingleModelPrediction = ({ onNotification }) => {
             const [models, setModels] = useState([]);
             const [selectedModel, setSelectedModel] = useState('');
-            const [inputData, setInputData] = useState('');
+            const [inputDRG, setInputDRG] = useState('');
+            const [inputSevernity, setInputSevernity] = useState('');
             const [loading, setLoading] = useState(false);
             const [result, setResult] = useState(null);
 
@@ -442,14 +443,18 @@
             };
 
             const handlePredict = async () => {
-                if (!selectedModel || !inputData) {
-                    onNotification('error', 'Please select a model and provide input data');
+                if (!selectedModel || !drgCode || !severityCode) {
+                    onNotification('error', 'Please select a model and provide both DRG code and severity code');
                     return;
                 }
 
                 setLoading(true);
                 try {
-                    const payload = JSON.parse(inputData);
+                    // Combine the two inputs into a single JSON object
+                    const payload = {
+                        drg_code: drgCode,
+                        severity_code: severityCode
+                    };
                     
                     const response = await fetch(`${API_BASE}/predict/${selectedModel}`, {
                         method: 'POST',
@@ -466,7 +471,7 @@
                         onNotification('error', result.error || 'Prediction failed');
                     }
                 } catch (error) {
-                    onNotification('error', 'Invalid JSON or network error');
+                    onNotification('error', 'Network error or server issue');
                 } finally {
                     setLoading(false);
                 }
@@ -477,8 +482,34 @@
                     <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200">
                         🎯 Single Model Prediction
                     </h2>
-                    
-                    <div className="space-y-4">
+
+                        <div>
+                            <label for="drg_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input the Diagnosis Related Group (DRG) Code
+                            </label>
+                            <input
+                                type="text"
+                                value={inputDRG}
+                                onChange={(e) => setInputDRG(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-10"
+                                placeholder='Ex. 103'
+                            />
+                        </div>
+
+                        <div>
+                            <label for="severity_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-2">
+                                Input the Severity Code
+                            </label>
+                            <input
+                                type="text"
+                                value={inputSevernity}
+                                onChange={(e) => setInputSevernity(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-10"
+                                placeholder='Ex. 3'
+                            />
+                        </div>
+
+                        <div className="space-y-4 mt-2">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Select Model
@@ -493,18 +524,6 @@
                                     <option key={model} value={model}>{model}</option>
                                 ))}
                             </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Input Data (JSON)
-                            </label>
-                            <textarea
-                                value={inputData}
-                                onChange={(e) => setInputData(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-32"
-                                placeholder='{"drg_code": 103, "severity_code": 3}'
-                            />
                         </div>
 
                         <button
