@@ -51,7 +51,7 @@ class HospitalDataConsumer:
             'current_batch_size': 0,
             'last_message_time': None,
             'start_time': datetime.now(),
-            'files_saved': {'json': 0, 'parquet': 0},
+            'files_saved': {'json': 0, 'csv': 0},
             'errors': 0,
             'status': 'initializing'
         }
@@ -81,7 +81,7 @@ class HospitalDataConsumer:
             return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
     
     def start_api_server(self):
-        """Start Flask API server in a separate thread"""
+        """Start Flask API server in a separate thread change to 127"""
         def run_server():
             self.app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
         
@@ -105,8 +105,9 @@ class HospitalDataConsumer:
                     auto_offset_reset='earliest',
                     enable_auto_commit=True,
                     auto_commit_interval_ms=1000,
-                    heartbeat_interval_ms=10000,
-                    session_timeout_ms=30000,                )
+                    session_timeout_ms=30000,
+                    heartbeat_interval_ms=10000
+                )
                 logger.info(f"Successfully connected to Kafka at {self.kafka_servers}")
                 return True
             except Exception as e:
@@ -208,7 +209,7 @@ class HospitalDataConsumer:
             # Generate file paths
             base_path = f"raw/year={timestamp.year}/month={timestamp.month:02d}"
             json_path = f"{base_path}/batch_{batch_id}_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
-            parquet_path = f"{base_path}/batch_{batch_id}_{timestamp.strftime('%Y%m%d_%H%M%S')}.parquet"
+            csv_path = f"{base_path}/batch_{batch_id}_{timestamp.strftime('%Y%m%d_%H%M%S')}.csv"
             
             # Save as JSON (original format)
             json_data = json.dumps(batch_data, indent=2, default=str)
@@ -222,29 +223,30 @@ class HospitalDataConsumer:
                 content_type='application/json'
             )
             
-            # Save as Parquet (optimized format)
+            # Save as CSV (optimized format)
             try:
-                parquet_buffer = BytesIO()
-                df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
-                parquet_buffer.seek(0)
+                csv_buffer = BytesIO()
+                csv_data = df.to_csv(index=False)
+                csv_buffer.write(csv_data.encode('utf-8'))
+                csv_buffer.seek(0)
                 
                 self.minio_client.put_object(
                     self.bucket_name,
-                    parquet_path,
-                    parquet_buffer,
-                    len(parquet_buffer.getvalue()),
-                    content_type='application/octet-stream'
+                    csv_path,
+                    csv_buffer,
+                    len(csv_data.encode('utf-8')),
+                    content_type='text/csv'
                 )
                 
                 # Update stats
                 self.stats['total_batches'] += 1
                 self.stats['files_saved']['json'] += 1
-                self.stats['files_saved']['parquet'] += 1
+                self.stats['files_saved']['csv'] += 1
                 
-                logger.info(f"Saved batch {batch_id} with {len(batch_data)} records to MinIO (JSON & Parquet)")
+                logger.info(f"Saved batch {batch_id} with {len(batch_data)} records to MinIO (JSON & CSV)")
                 
             except Exception as e:
-                logger.warning(f"Could not save Parquet format: {e}")
+                logger.warning(f"Could not save CSV format: {e}")
                 logger.info(f"Saved batch {batch_id} with {len(batch_data)} records to MinIO (JSON only)")
             
             # Save metadata
@@ -253,7 +255,7 @@ class HospitalDataConsumer:
                 "record_count": len(batch_data),
                 "timestamp": timestamp.isoformat(),
                 "json_path": json_path,
-                "parquet_path": parquet_path,
+                "csv_path": csv_path,
                 "data_source": "kafka-stream",
                 "schema_version": "1.0"
             }

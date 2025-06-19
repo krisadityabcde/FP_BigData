@@ -1,5 +1,16 @@
 version: '3.8'
 
+# Hospital Big Data Pipeline with ML Services
+# Services:
+# - Zookeeper & Kafka: Message streaming infrastructure
+# - Kafka-UI: Kafka monitoring interface
+# - MinIO: Object storage for data and models
+# - Data Producer: Streams hospital data from Kaggle to Kafka
+# - Data Consumer: Consumes from Kafka and stores to MinIO
+# - Spark Trainer: ML training service for hospital predictions
+# - API: REST API for real-time predictions
+# - Spark Monitor: Monitoring service for training progress (optional)
+
 services:
   # Zookeeper - Required for Kafka
   zookeeper:
@@ -84,6 +95,7 @@ services:
       - ./services/data-producer:/app
     networks:
       - bigdata-network
+    restart: unless-stopped
 
   # Data Consumer Service (Kafka to MinIO)
   data-consumer:
@@ -101,28 +113,98 @@ services:
       KAFKA_TOPIC: hospital-data
       KAFKA_GROUP_ID: hospital-data-consumer
       MINIO_ENDPOINT: minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: hospital-data
     volumes:
       - ./services/data-consumer:/app
     networks:
       - bigdata-network
+    restart: unless-stopped
 
-  # Streamlit Monitor Service
-  streamlit-monitor:
+  # Spark ML Trainer Service
+  spark-trainer:
     build:
-      context: ./services/streamlit-monitor
+      context: ./services/spark-trainer
       dockerfile: Dockerfile
-    container_name: streamlit-monitor
+    container_name: spark-trainer
     depends_on:
+      - minio
       - data-consumer
-    ports:
-      - "8501:8501"
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: hospital-data
+      MINIO_MODEL_BUCKET: hospital-models
+      SPARK_MASTER: local[*]
+      SPARK_DRIVER_MEMORY: 2g
+      SPARK_EXECUTOR_MEMORY: 2g
     volumes:
-      - ./services/streamlit-monitor:/app
+      - ./services/spark-trainer:/app
+      - spark-models:/app/models
     networks:
       - bigdata-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+        reservations:
+          memory: 2g
+
+  # Prediction API Service
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: prediction-api
+    depends_on:
+      - minio
+      - spark-trainer
+    ports:
+      - "5001:5001"
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_MODEL_BUCKET: hospital-models
+      FLASK_ENV: production
+      FLASK_DEBUG: "false"
+    volumes:
+      - ./services/api:/app
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Spark Trainer Monitor Service
+  spark-monitor:
+    build:
+      context: ./services/spark-trainer
+      dockerfile: Dockerfile
+    container_name: spark-monitor
+    depends_on:
+      - minio
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: hospital-data
+      MINIO_MODEL_BUCKET: hospital-models
+    volumes:
+      - ./services/spark-trainer:/app
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+    command: ["python", "monitor.py"]
+    profiles:
+      - monitoring
 
 networks:
   bigdata-network:
@@ -132,3 +214,4 @@ volumes:
   kafka-data:
   zookeeper-data:
   minio-data:
+  spark-models:

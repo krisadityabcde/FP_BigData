@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # Constants
-CONSUMER_API_URL = "http://172.18.0.6:5000/api"
+CONSUMER_API_URL = "http://127.0.0.1:5000/api"
 
 def get_consumer_stats():
     """Get statistics from consumer API"""
@@ -122,7 +122,7 @@ def main():
             with col1:
                 st.metric("JSON Files", stats['files_saved']['json'])
             with col2:
-                st.metric("Parquet Files", stats['files_saved']['parquet'])
+                st.metric("CSV Files", stats['files_saved']['csv'])
             with col3:
                 st.metric("Errors", stats['errors'])
             
