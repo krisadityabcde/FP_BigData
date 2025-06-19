@@ -20,6 +20,7 @@ This project implements a comprehensive big data system for predicting hospital 
 - **Apache Spark**: Large-scale ML model training and data processing
 - **MinIO**: S3-compatible object storage for data lakehouse
 - **DuckDB**: High-performance analytical database for OLAP queries and data exploration
+- **DuckDB**: 
 - **Flask API**: RESTful prediction service
 - **React Frontend**: Interactive web interface
 
@@ -174,12 +175,31 @@ FP_BigData/
 │   │   ├── streamlit_app.py       # Interactive interface
 │   │   ├── start_services.sh      # Service startup script
 │   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── spark-trainer/             # ML model training
+│   │   ├── spark-trainer.py
+│   │   ├── test_data_loading.py
+│   │   ├── monitor.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── api/                       # Prediction REST API
+│   │   ├── api.py
+│   │   ├── test_api.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── streamlit-monitor/         # Real-time monitoring
+│   │   ├── app.py
+│   │   ├── pyproject.toml
 │   │   ├── requirements.txt
 │   │   └── README.md              # Service documentation
 │   └── frontend/                  # Web interface
 │       └── index.html
 ├── data/                          # Local data storage
 └── README.md                      # This file
+│   │   └── uv.lock
+│   └── frontend/                  # Web interface
+│       └── index.html
+└── data/                          # Local data storage
 ```
 
 ## 🎮 Usage Examples
