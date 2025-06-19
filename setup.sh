@@ -35,12 +35,9 @@ echo "✅ Data directory created"
 echo "📥 Pulling Docker images..."
 docker-compose pull
 
-echo
-echo "🚀 Setup complete! To run the system:"
-echo "   1. Edit .env file with your Kaggle credentials"
-echo "   2. Run: docker-compose up --build"
-echo
-echo "🌐 Services will be available at:"
-echo "   - Kafka UI: http://localhost:8080"
-echo "   - Kafka Broker: localhost:9092"
-echo
+cd service/streamlit-monitor
+uv sync &
+echo "📦 Streamlit Monitor service setup complete"
+
+cd ../..
+echo "📦 All services setup complete"

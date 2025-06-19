@@ -16,6 +16,7 @@ This project implements a big data system for predicting hospital costs and leng
 ### Prerequisites
 - Docker and Docker Compose installed
 - Kaggle API credentials
+- uv package manager
 
 ### Setup Instructions
 
@@ -30,9 +31,26 @@ This project implements a big data system for predicting hospital costs and leng
    # Edit .env file with your Kaggle credentials
    ```
 
-3. **Run the System**
+3. **Setup**
    ```bash
-   docker-compose up --build
+   ./setup.sh
+   ```
+
+   or,
+
+   ```
+   ./setup.bat
+   ```
+
+4. **Run the System**
+   ```bash
+   ./manage.sh [ARGS]
+   ```
+
+   or,
+
+   ```
+   ./manage.bat [ARGS]
    ```
 
 ## Services
