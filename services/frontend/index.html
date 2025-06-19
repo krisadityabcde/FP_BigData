@@ -425,6 +425,7 @@
             const [inputSevernity, setInputSevernity] = useState('');
             const [loading, setLoading] = useState(false);
             const [result, setResult] = useState(null);
+            const loadingsound = useRef(new Audio('./sfx/loading.mp3'));
 
             useEffect(() => {
                 fetchModels();
@@ -443,18 +444,17 @@
             };
 
             const handlePredict = async () => {
-                if (!selectedModel || !drgCode || !severityCode) {
+                if (!selectedModel || !inputDRG || !inputSevernity) {
                     onNotification('error', 'Please select a model and provide both DRG code and severity code');
                     return;
                 }
 
                 setLoading(true);
                 try {
-                    // Combine the two inputs into a single JSON object
-                    const payload = {
-                        drg_code: drgCode,
-                        severity_code: severityCode
-                    };
+                    const payload = JSON.stringify({
+                        drg_code: inputDRG,
+                        severity_code: inputSevernity
+                    }, null, 2);
                     
                     const response = await fetch(`${API_BASE}/predict/${selectedModel}`, {
                         method: 'POST',
@@ -497,16 +497,19 @@
                         </div>
 
                         <div>
-                            <label for="severity_code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-2">
-                                Input the Severity Code
-                            </label>
-                            <input
-                                type="text"
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-2">
+                            Input the Severity Code
+                        </label>
+                            <select
                                 value={inputSevernity}
                                 onChange={(e) => setInputSevernity(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-10"
-                                placeholder='Ex. 3'
-                            />
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent">
+                                <option value="">Select severity...</option>
+                                <option value="1">1 - Minor</option>
+                                <option value="2">2 - Moderate</option>
+                                <option value="3">3 - Major</option>
+                                <option value="4">4 - Extreme</option>
+                            </select>
                         </div>
 
                         <div className="space-y-4 mt-2">
@@ -517,7 +520,7 @@
                             <select
                                 value={selectedModel}
                                 onChange={(e) => setSelectedModel(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                className="w-full p-3 border border-gray-300 mb-3 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
                                 <option value="">Choose a model...</option>
                                 {models.map(model => (
@@ -549,19 +552,34 @@
 
         // All Models Prediction Component
         const AllModelsPrediction = ({ onNotification }) => {
-            const [inputData, setInputData] = useState('');
+            const [inputDRG, setInputDRG] = useState('');
+            const [inputSevernity, setInputSevernity] = useState('');
+            const [inputAge, setInputAge] = useState('');
+            const [inputGender, setInputGender] = useState('');
             const [loading, setLoading] = useState(false);
             const [results, setResults] = useState(null);
 
+            const payload = {
+                        drg_code: inputDRG,
+                        severity_code: inputSevernity,
+                        age_group: inputAge,
+                        gender: inputGender
+            };
+
             const handlePredictAll = async () => {
-                if (!inputData) {
-                    onNotification('error', 'Please provide input data');
+                if (!drgCode || !severityCode || !inputAge || !inputGender) {
+                    onNotification('error', 'Please select a model and provide both DRG code and severity code');
                     return;
                 }
 
                 setLoading(true);
                 try {
-                    const payload = JSON.parse(inputData);
+                    const payload = JSON.stringify({
+                        drg_code: inputDRG,
+                        severity_code: inputSevernity,
+                        age_group: inputAge,
+                        gender: inputGender
+                    }, null, 2);
                     
                     const response = await fetch(`${API_BASE}/predict/all`, {
                         method: 'POST',
@@ -572,13 +590,13 @@
                     const result = await response.json();
 
                     if (result.success) {
-                        setResults(result);
-                        onNotification('success', 'All predictions completed!');
+                        setResult(result);
+                        onNotification('success', 'Prediction completed!');
                     } else {
-                        onNotification('error', result.error || 'Predictions failed');
+                        onNotification('error', result.error || 'Prediction failed');
                     }
                 } catch (error) {
-                    onNotification('error', 'Invalid JSON or network error');
+                    onNotification('error', 'Network error or server issue');
                 } finally {
                     setLoading(false);
                 }
@@ -593,19 +611,69 @@
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Input Data (JSON)
+                                Input the Diagnosis Related Group (DRG) Code 
                             </label>
-                            <textarea
-                                value={inputData}
-                                onChange={(e) => setInputData(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-32"
-                                placeholder='{"drg_code": 103, "severity_code": 3, "age_group": "50-69", "gender": "M"}'
+                            <input
+                                value={inputDRG}
+                                onChange={(e) => setInputDRG(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-10"
+                                placeholder='Ex. 103'
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input Severity Code
+                            </label>
+                            <select
+                                value={inputSevernity}
+                                onChange={(e) => setInputSevernity(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            >
+                                <option value="">Select severity...</option>
+                                <option value="1">1 - Minor</option>
+                                <option value="2">2 - Moderate</option>
+                                <option value="3">3 - Major</option>
+                                <option value="4">4 - Extreme</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input Age Group
+                            </label>
+                            <select
+                                value={inputAge}
+                                onChange={(e) => setInputAge(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            >
+                                <option value="">Select age group...</option>
+                                <option value="0-17">0-17 years</option>
+                                <option value="18-29">18-29 years</option>
+                                <option value="30-49">30-49 years</option>
+                                <option value="50-69">50-69 years</option>
+                                <option value="70+">70+ years</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input Gender
+                            </label>
+                            <select
+                                value={inputGender}
+                                onChange={(e) => setInputGender(e.target.value)}
+                                className="w-full p-3 border border-gray-300 mb-3 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            >
+                                    <option value="">Select gender...</option>
+                                    <option value="M">Male</option>
+                                    <option value="F">Female</option>
+                            </select>
                         </div>
 
                         <button
                             onClick={handlePredictAll}
-                            disabled={loading || !inputData}
+                            disabled={loading || !inputDRG || !inputSevernity}
                             className="w-full bg-success text-white py-3 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
                         >
                             {loading ? 'Predicting...' : 'Predict with All Models'}
@@ -915,13 +983,9 @@
                                         <p>This endpoint allows you to get predictions from a specific model by providing:</p>
                                         <ul className="list-disc ml-4 space-y-1">
                                             <li>Select the target model (length_of_stay, total_costs, etc.)</li>
-                                            <li>Provide input data in JSON format</li>
+                                            <li>Provide the needed information</li>
                                             <li>Get detailed prediction with model metadata</li>
                                         </ul>
-                                        <p className="mt-3"><strong>Example input:</strong></p>
-                                        <pre className="bg-gray-100 dark:bg-gray-700 p-2 rounded text-xs">
-{JSON.stringify({ drg_code: 103, severity_code: 3 }, null, 2)}
-                                        </pre>
                                     </div>
                                 </div>
                             </div>
@@ -935,20 +999,11 @@
                                     <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                                         <p>This endpoint runs predictions across all available models simultaneously:</p>
                                         <ul className="list-disc ml-4 space-y-1">
-                                            <li>Provide input data once</li>
+                                            <li>Provide the needed data once</li>
                                             <li>Get predictions from all trained models</li>
                                             <li>Compare different model outputs</li>
                                             <li>Useful for comprehensive analysis</li>
                                         </ul>
-                                        <p className="mt-3"><strong>Example input:</strong></p>
-                                        <pre className="bg-gray-100 dark:bg-gray-700 p-2 rounded text-xs">
-{JSON.stringify({
-  drg_code: 103,
-  severity_code: 3,
-  age_group: "50-69",
-  gender: "M"
-}, null, 2)}
-                                        </pre>
                                     </div>
                                 </div>
                             </div>
