@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import boto3
 from botocore.client import Config
 import logging
+import urllib.parse
 
 # Load environment variables
 load_dotenv()
@@ -22,11 +23,13 @@ class DuckDBQueryEngine:
             # Install and load required extensions
             self.conn.execute("INSTALL httpfs;")
             self.conn.execute("LOAD httpfs;")
-              # Configure S3/MinIO settings
-            minio_endpoint = os.getenv('MINIO_ENDPOINT', 'minio:9000')
+            
+            # Configure S3/MinIO settings - use localhost for direct access
+            minio_endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9090')
             minio_access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
             minio_secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
-              # Set S3 configuration for MinIO
+            
+            # Set S3 configuration for MinIO
             logging.info(f"Configuring DuckDB with MinIO endpoint: {minio_endpoint}")
             
             self.conn.execute(f"""
@@ -53,11 +56,38 @@ class DuckDBQueryEngine:
             logging.error(f"Query execution failed: {e}")
             raise
     
-    def query_parquet_from_minio(self, bucket_name, file_path, query=None):
-        """Query Parquet file directly from MinIO"""
+    def query_csv_from_minio(self, bucket_name, file_path, query=None):
+        """Query CSV file directly from MinIO"""
         try:
+            # Properly decode URL-encoded path
+            decoded_path = urllib.parse.unquote(file_path)
+            
             # Construct S3 path for MinIO
-            s3_path = f"s3://{bucket_name}/{file_path}"
+            s3_path = f"s3://{bucket_name}/{decoded_path}"
+            
+            if query is None:
+                # Default query to select all data from CSV
+                query = f"SELECT * FROM read_csv_auto('{s3_path}')"
+            else:
+                # Replace table placeholder with CSV read function
+                query = query.replace("{table}", f"read_csv_auto('{s3_path}')")
+            
+            logging.info(f"Executing query on {s3_path}")
+            result = self.execute_query(query)
+            return result
+            
+        except Exception as e:
+            logging.error(f"Failed to query CSV from MinIO: {e}")
+            raise
+    
+    def query_parquet_from_minio(self, bucket_name, file_path, query=None):
+        """Query Parquet file directly from MinIO (kept for backward compatibility)"""
+        try:
+            # Properly decode URL-encoded path
+            decoded_path = urllib.parse.unquote(file_path)
+            
+            # Construct S3 path for MinIO
+            s3_path = f"s3://{bucket_name}/{decoded_path}"
             
             if query is None:
                 # Default query to select all data
@@ -74,14 +104,62 @@ class DuckDBQueryEngine:
             logging.error(f"Failed to query parquet from MinIO: {e}")
             raise
     
-    def create_view_from_parquet(self, view_name, bucket_name, file_path):
-        """Create a view from Parquet file for easier querying"""
+    def query_file_from_minio(self, bucket_name, file_path, query=None, file_type="csv"):
+        """Query file from MinIO with auto-detection of file type"""
         try:
-            s3_path = f"s3://{bucket_name}/{file_path}"
-            create_view_query = f"""
-                CREATE OR REPLACE VIEW {view_name} AS 
-                SELECT * FROM read_parquet('{s3_path}')
-            """
+            # Properly decode URL-encoded path
+            decoded_path = urllib.parse.unquote(file_path)
+            
+            # Auto-detect file type if not specified
+            if file_type == "auto":
+                if decoded_path.lower().endswith('.parquet'):
+                    file_type = "parquet"
+                elif decoded_path.lower().endswith('.csv'):
+                    file_type = "csv"
+                else:
+                    file_type = "csv"  # Default to CSV
+            
+            # Construct S3 path for MinIO
+            s3_path = f"s3://{bucket_name}/{decoded_path}"
+            
+            if query is None:
+                # Default query based on file type
+                if file_type == "parquet":
+                    query = f"SELECT * FROM read_parquet('{s3_path}')"
+                else:
+                    query = f"SELECT * FROM read_csv_auto('{s3_path}')"
+            else:
+                # Replace table placeholder with appropriate read function
+                if file_type == "parquet":
+                    query = query.replace("{table}", f"read_parquet('{s3_path}')")
+                else:
+                    query = query.replace("{table}", f"read_csv_auto('{s3_path}')")
+            
+            logging.info(f"Executing {file_type.upper()} query on {s3_path}")
+            result = self.execute_query(query)
+            return result
+            
+        except Exception as e:
+            logging.error(f"Failed to query {file_type} from MinIO: {e}")
+            raise
+    
+    def create_view_from_file(self, view_name, bucket_name, file_path, file_type="csv"):
+        """Create a view from file for easier querying"""
+        try:
+            decoded_path = urllib.parse.unquote(file_path)
+            s3_path = f"s3://{bucket_name}/{decoded_path}"
+            
+            if file_type == "parquet":
+                create_view_query = f"""
+                    CREATE OR REPLACE VIEW {view_name} AS 
+                    SELECT * FROM read_parquet('{s3_path}')
+                """
+            else:
+                create_view_query = f"""
+                    CREATE OR REPLACE VIEW {view_name} AS 
+                    SELECT * FROM read_csv_auto('{s3_path}')
+                """
+                
             self.conn.execute(create_view_query)
             logging.info(f"View '{view_name}' created successfully")
             
@@ -89,11 +167,17 @@ class DuckDBQueryEngine:
             logging.error(f"Failed to create view: {e}")
             raise
     
-    def get_table_info(self, bucket_name, file_path):
-        """Get schema information of Parquet file"""
+    def get_table_info(self, bucket_name, file_path, file_type="csv"):
+        """Get schema information of file"""
         try:
-            s3_path = f"s3://{bucket_name}/{file_path}"
-            info_query = f"DESCRIBE SELECT * FROM read_parquet('{s3_path}')"
+            decoded_path = urllib.parse.unquote(file_path)
+            s3_path = f"s3://{bucket_name}/{decoded_path}"
+            
+            if file_type == "parquet":
+                info_query = f"DESCRIBE SELECT * FROM read_parquet('{s3_path}')"
+            else:
+                info_query = f"DESCRIBE SELECT * FROM read_csv_auto('{s3_path}')"
+                
             result = self.execute_query(info_query)
             return result
             

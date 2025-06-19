@@ -61,19 +61,20 @@ async def health_check():
             "error": str(e)
         }
 
-@app.post("/query/parquet")
-async def query_parquet(
+@app.post("/query/csv")
+async def query_csv(
     bucket_name: str,
     file_path: str,
     query: Optional[str] = None,
     limit: Optional[int] = Query(default=1000, le=10000)
 ):
     """
-    Query Parquet file from MinIO
+    Query CSV file from MinIO
     
     - **bucket_name**: MinIO bucket name
-    - **file_path**: Path to Parquet file in bucket
-    - **query**: SQL query (use {table} as placeholder for the parquet file)    - **limit**: Maximum number of rows to return
+    - **file_path**: Path to CSV file in bucket (URL encoded paths will be decoded)
+    - **query**: SQL query (use {table} as placeholder for the CSV file)
+    - **limit**: Maximum number of rows to return
     """
     try:
         if query is None:
@@ -81,12 +82,13 @@ async def query_parquet(
         elif "LIMIT" not in query.upper():
             query += f" LIMIT {limit}"
             
-        result_df = query_engine.query_parquet_from_minio(
+        result_df = query_engine.query_csv_from_minio(
             bucket_name=bucket_name,
             file_path=file_path,
-            query=query        )
+            query=query
+        )
+        
         # Convert DataFrame to JSON with proper handling of NaN/infinity values
-        # Replace NaN and infinity values to make JSON compliant
         import pandas as pd
         import numpy as np
         
@@ -115,21 +117,82 @@ async def query_parquet(
         }
         
     except Exception as e:
-        logger.error(f"Query failed: {e}")
+        logger.error(f"CSV Query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/query/file")
+async def query_file(
+    bucket_name: str,
+    file_path: str,
+    file_type: str = Query(default="csv", regex="^(csv|parquet|auto)$"),
+    query: Optional[str] = None,
+    limit: Optional[int] = Query(default=1000, le=10000)
+):
+    """
+    Query file from MinIO with auto file type detection
+    
+    - **bucket_name**: MinIO bucket name
+    - **file_path**: Path to file in bucket (URL encoded paths will be decoded)
+    - **file_type**: File type (csv, parquet, or auto for auto-detection)
+    - **query**: SQL query (use {table} as placeholder)
+    - **limit**: Maximum number of rows to return
+    """
+    try:
+        if query is None:
+            query = f"SELECT * FROM {{table}} LIMIT {limit}"
+        elif "LIMIT" not in query.upper():
+            query += f" LIMIT {limit}"
+            
+        result_df = query_engine.query_file_from_minio(
+            bucket_name=bucket_name,
+            file_path=file_path,
+            query=query,
+            file_type=file_type
+        )
+        
+        # Convert DataFrame to JSON with proper handling of NaN/infinity values
+        import pandas as pd
+        import numpy as np
+        
+        result_df_clean = result_df.replace([np.inf, -np.inf], None)
+        result_df_clean = result_df_clean.where(pd.notnull(result_df_clean), None)
+        
+        result_json = []
+        for _, row in result_df_clean.iterrows():
+            row_dict = {}
+            for col, val in row.items():
+                if pd.isna(val) or np.isinf(val) if isinstance(val, (int, float)) else False:
+                    row_dict[col] = None
+                else:
+                    row_dict[col] = val
+            result_json.append(row_dict)
+        
+        return {
+            "status": "success",
+            "rows_returned": len(result_json),
+            "query": query.replace("{table}", f"s3://{bucket_name}/{file_path}"),
+            "file_type": file_type,
+            "data": result_json
+        }
+        
+    except Exception as e:
+        logger.error(f"File Query failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/schema/{bucket_name}")
-async def get_schema(bucket_name: str, file_path: str):
+async def get_schema(bucket_name: str, file_path: str, file_type: str = Query(default="csv")):
     """
-    Get schema information of Parquet file
+    Get schema information of file
     
     - **bucket_name**: MinIO bucket name
-    - **file_path**: Path to Parquet file in bucket
+    - **file_path**: Path to file in bucket
+    - **file_type**: File type (csv or parquet)
     """
     try:
         schema_df = query_engine.get_table_info(
             bucket_name=bucket_name,
-            file_path=file_path
+            file_path=file_path,
+            file_type=file_type
         )
         
         schema_json = schema_df.to_dict(orient='records')
@@ -138,11 +201,68 @@ async def get_schema(bucket_name: str, file_path: str):
             "status": "success",
             "bucket": bucket_name,
             "file_path": file_path,
+            "file_type": file_type,
             "schema": schema_json
         }
         
     except Exception as e:
         logger.error(f"Schema retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Update existing parquet endpoint to handle URL decoding
+@app.post("/query/parquet")
+async def query_parquet(
+    bucket_name: str,
+    file_path: str,
+    query: Optional[str] = None,
+    limit: Optional[int] = Query(default=1000, le=10000)
+):
+    """
+    Query Parquet file from MinIO
+    
+    - **bucket_name**: MinIO bucket name
+    - **file_path**: Path to Parquet file in bucket (URL encoded paths will be decoded)
+    - **query**: SQL query (use {table} as placeholder for the parquet file)
+    - **limit**: Maximum number of rows to return
+    """
+    try:
+        if query is None:
+            query = f"SELECT * FROM {{table}} LIMIT {limit}"
+        elif "LIMIT" not in query.upper():
+            query += f" LIMIT {limit}"
+            
+        result_df = query_engine.query_parquet_from_minio(
+            bucket_name=bucket_name,
+            file_path=file_path,
+            query=query
+        )
+        
+        # Convert DataFrame to JSON with proper handling of NaN/infinity values
+        import pandas as pd
+        import numpy as np
+        
+        result_df_clean = result_df.replace([np.inf, -np.inf], None)
+        result_df_clean = result_df_clean.where(pd.notnull(result_df_clean), None)
+        
+        result_json = []
+        for _, row in result_df_clean.iterrows():
+            row_dict = {}
+            for col, val in row.items():
+                if pd.isna(val) or np.isinf(val) if isinstance(val, (int, float)) else False:
+                    row_dict[col] = None
+                else:
+                    row_dict[col] = val
+            result_json.append(row_dict)
+        
+        return {
+            "status": "success",
+            "rows_returned": len(result_json),
+            "query": query.replace("{table}", f"s3://{bucket_name}/{file_path}"),
+            "data": result_json
+        }
+        
+    except Exception as e:
+        logger.error(f"Query failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/view/create")

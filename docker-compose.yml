@@ -184,28 +184,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # Spark Trainer Monitor Service
-  spark-monitor:
-    build:
-      context: ./services/spark-trainer
-      dockerfile: Dockerfile
-    container_name: spark-monitor
-    depends_on:
-      - minio
-    environment:
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: hospital-data
-      MINIO_MODEL_BUCKET: hospital-models
-    volumes:
-      - ./services/spark-trainer:/app
-    networks:
-      - bigdata-network
-    restart: unless-stopped
-    command: ["python", "monitor.py"]
-    profiles:
-      - monitoring
   # DuckDB Query Service (Interactive Analytics)
   duckdb-query:
     build:
@@ -216,7 +194,7 @@ services:
       - minio
     ports:
       - "8002:8002"  # FastAPI service
-      - "8502:8503"  # Streamlit interface (internal port 8503 to avoid conflict with potential streamlit-monitor)
+      - "8502:8502"  # Streamlit interface
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -224,7 +202,7 @@ services:
       QUERY_SERVICE_HOST: 0.0.0.0
       QUERY_SERVICE_PORT: 8002
       STREAMLIT_HOST: 0.0.0.0
-      STREAMLIT_PORT: 8503
+      STREAMLIT_PORT: 8502
     volumes:
       - ./services/duckdb-query:/app
     networks:

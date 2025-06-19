@@ -17,6 +17,10 @@ if "%1"=="test-data" goto test_data
 if "%1"=="api-test" goto api_test
 if "%1"=="kafka-ui" goto kafka_ui
 if "%1"=="minio-ui" goto minio_ui
+if "%1"=="duckdb" goto duckdb
+if "%1"=="duckdb-api" goto duckdb_api
+if "%1"=="duckdb-ui" goto duckdb_ui
+if "%1"=="duckdb-test" goto duckdb_test
 if "%1"=="clean" goto clean
 
 echo ❌ Unknown command: %1
@@ -43,6 +47,10 @@ echo   test-data     Test data loading functionality
 echo   api-test      Test the prediction API
 echo   kafka-ui      Open Kafka UI in browser
 echo   minio-ui      Open MinIO Console in browser
+echo   duckdb        Start DuckDB Query services (API + Streamlit)
+echo   duckdb-api    Start DuckDB API service only
+echo   duckdb-ui     Start DuckDB Streamlit interface only
+echo   duckdb-test   Test DuckDB connection and queries
 echo   clean         Clean up all data and volumes
 echo   help          Show this help message
 echo.
@@ -57,6 +65,8 @@ echo 🌐 Available services:
 echo   - Kafka UI: http://localhost:8080
 echo   - MinIO Console: http://localhost:9090
 echo   - Prediction API: http://localhost:5001
+echo   - DuckDB API: http://localhost:8002
+echo   - DuckDB Interface: http://localhost:8502
 echo.
 echo 💡 Use 'manage.bat check-data' to verify data availability
 goto end
@@ -91,7 +101,7 @@ goto end
 :start_pipeline
 echo 🚀 Starting complete data pipeline...
 echo 1. Starting infrastructure services...
-docker-compose up -d zookeeper kafka minio kafka-ui
+docker-compose up -d zookeeper kafka minio kafka-ui duckdb-query
 echo    Waiting for services to be ready...
 timeout /t 15 /nobreak >nul
 echo 2. Starting data producer...
@@ -113,6 +123,15 @@ timeout /t 240 /nobreak >nul
 echo 6. Starting API service...
 docker-compose up -d api
 echo ✅ Complete pipeline started!
+echo.
+echo 🌐 Available interfaces:
+echo   - Streamlit Monitor: http://localhost:8501
+echo   - DuckDB Interface: http://localhost:8502
+echo   - Kafka UI: http://localhost:8080
+echo   - MinIO Console: http://localhost:9090
+echo   - Prediction API: http://localhost:5001
+echo   - DuckDB API: http://localhost:8002
+echo.
 echo 💡 Monitor progress with: manage.bat debug
 goto end
 
@@ -134,6 +153,9 @@ docker-compose logs --tail=10 spark-trainer
 echo.
 echo API logs:
 docker-compose logs --tail=10 api
+echo.
+echo DuckDB Query logs:
+docker-compose logs --tail=10 duckdb-query
 goto end
 
 :check_data
@@ -183,6 +205,58 @@ goto end
 :minio_ui
 echo 🌐 Opening MinIO Console...
 start http://localhost:9090
+goto end
+
+:duckdb
+echo 🦆 Starting DuckDB Query services...
+echo.
+echo Starting DuckDB container...
+docker-compose up -d duckdb-query
+echo.
+echo Waiting for services to be ready...
+timeout /t 15 /nobreak >nul
+echo.
+echo ✅ DuckDB services started successfully!
+echo.
+echo 🌐 Available interfaces:
+echo   - DuckDB API: http://localhost:8002
+echo   - DuckDB Streamlit Interface: http://localhost:8502
+echo.
+echo 💡 Test with: manage.bat duckdb-test
+echo 📋 View logs with: docker-compose logs -f duckdb-query
+goto end
+
+:duckdb_api
+echo 🦆 Starting DuckDB API service only...
+cd services\duckdb-query
+start /b cmd /c "uv run python query_service.py"
+echo.
+echo ✅ DuckDB API started on http://localhost:8002
+echo 💡 Test with: curl http://localhost:8002/health
+cd ..\..
+goto end
+
+:duckdb_ui
+echo 🦆 Starting DuckDB Streamlit interface only...
+cd services\duckdb-query
+start /b cmd /c "uv run streamlit run streamlit_app.py --server.port 8503 --server.address 0.0.0.0"
+echo.
+echo ✅ DuckDB Streamlit Interface started on http://localhost:8503
+cd ..\..
+goto end
+
+:duckdb_test
+echo 🧪 Testing DuckDB Query services...
+echo.
+echo 1. Testing API health...
+timeout /t 3 /nobreak >nul
+curl -s http://localhost:8002/health | python -m json.tool 2>nul || echo "API not ready or curl not available"
+echo.
+echo 2. Testing container health...
+docker-compose exec duckdb-query python -c "from duckdb_engine import DuckDBQueryEngine; engine = DuckDBQueryEngine(); result = engine.execute_query('SELECT 1 as test'); print('✅ Connection successful!'); print(result); engine.close_connection()" 2>nul || echo "Container test failed"
+echo.
+echo 3. Checking service logs...
+docker-compose logs --tail=5 duckdb-query
 goto end
 
 :clean
