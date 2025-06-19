@@ -8,30 +8,22 @@ This project implements a big data system for predicting hospital costs and leng
 - **Kafka**: Data streaming and message queuing
 - **MinIO**: S3-compatible object storage for data lake
 - **Docker**: Containerized deployment
-- **KaggleHub**: Automatic dataset download
 - **Data Lakehouse**: Storage and processing architecture
 
 ## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Kaggle API credentials
 - uv package manager
 
 ### Setup Instructions
 
-1. **Get Kaggle API Credentials**
-   - Go to https://www.kaggle.com/settings/account
-   - Click "Create New API Token" to download `kaggle.json`
-   - Note down your username and key from the file
-
-2. **Configure Environment**
+1. **Configure Environment**
    ```bash
    cp .env.example .env
-   # Edit .env file with your Kaggle credentials
    ```
 
-3. **Setup**
+2. **Setup**
    ```bash
    ./setup.sh
    ```
@@ -42,7 +34,7 @@ This project implements a big data system for predicting hospital costs and leng
    ./setup.bat
    ```
 
-4. **Run the System**
+3. **Run the System**
    ```bash
    ./manage.sh [ARGS]
    ```

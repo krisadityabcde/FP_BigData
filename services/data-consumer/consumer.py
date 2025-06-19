@@ -163,19 +163,6 @@ class HospitalDataConsumer:
                 "raw/",
                 "processed/",
                 "archived/",
-                "year=2015/",
-                "year=2015/month=01/",
-                "year=2015/month=02/",
-                "year=2015/month=03/",
-                "year=2015/month=04/",
-                "year=2015/month=05/",
-                "year=2015/month=06/",
-                "year=2015/month=07/",
-                "year=2015/month=08/",
-                "year=2015/month=09/",
-                "year=2015/month=10/",
-                "year=2015/month=11/",
-                "year=2015/month=12/"
             ]
             
             for folder in folders:

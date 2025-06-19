@@ -5,7 +5,7 @@ version: '3.8'
 # - Zookeeper & Kafka: Message streaming infrastructure
 # - Kafka-UI: Kafka monitoring interface
 # - MinIO: Object storage for data and models
-# - Data Producer: Streams hospital data from Kaggle to Kafka
+# - Data Producer: Streams hospital data to Consumer via Kafka
 # - Data Consumer: Consumes from Kafka and stores to MinIO
 # - Spark Trainer: ML training service for hospital predictions
 # - API: REST API for real-time predictions
@@ -88,11 +88,9 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: hospital-data
-      KAGGLE_USERNAME: ${KAGGLE_USERNAME}
-      KAGGLE_KEY: ${KAGGLE_KEY}
     volumes:
-      - ./data:/app/data
-      - ./services/data-producer:/app
+      # Map local data folder to container data folder
+      - ./services/data-producer/data:/app/data:ro
     networks:
       - bigdata-network
     restart: unless-stopped

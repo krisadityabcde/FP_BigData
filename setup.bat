@@ -24,14 +24,8 @@ REM Check if .env file exists
 if not exist .env (
     echo ⚠️  .env file not found. Creating from template...
     copy .env.example .env
-    echo 📝 Please edit .env file with your Kaggle credentials before running the system
-    echo    Get your credentials from: https://www.kaggle.com/settings/account
     echo.
 )
-
-REM Create data directory
-if not exist data mkdir data
-echo ✅ Data directory created
 
 REM Pull Docker images
 echo 📥 Pulling Docker images...

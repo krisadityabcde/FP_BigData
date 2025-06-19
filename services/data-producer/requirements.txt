@@ -1,5 +1,4 @@
 kafka-python==2.0.2
-kagglehub==0.3.0
 pandas==2.0.3
 numpy==1.24.3
 python-dotenv==1.0.0

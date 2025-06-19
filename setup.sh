@@ -22,8 +22,6 @@ echo "✅ Docker and Docker Compose are installed"
 if [ ! -f .env ]; then
     echo "⚠️  .env file not found. Creating from template..."
     cp .env.example .env
-    echo "📝 Please edit .env file with your Kaggle credentials before running the system"
-    echo "   Get your credentials from: https://www.kaggle.com/settings/account"
     echo
 fi
 

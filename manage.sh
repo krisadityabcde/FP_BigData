@@ -137,12 +137,12 @@ except Exception as e:
         echo "2. Starting data producer..."
         docker-compose up -d data-producer
         echo "   Waiting for data production to start..."
-        sleep 90
+        sleep 10
         
         echo "3. Starting data consumer..."
         docker-compose up -d data-consumer
         echo "   Waiting for data consumption to start..."
-        sleep 60
+        sleep 15
 
         echo "4. Starting Streamlit Monitor..."
         cd services/streamlit-monitor
