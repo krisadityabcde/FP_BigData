@@ -163,6 +163,7 @@
             const [loading, setLoading] = useState(false);
             const [predictions, setPredictions] = useState(null);
             const [lastPrediction, setLastPrediction] = useState(null);
+            const loadingsound = useRef(new Audio('./sfx/loading_2.mp3'));
 
             const handleInputChange = (field, value) => {
                 setFormData(prev => ({
@@ -179,6 +180,7 @@
 
                 setLoading(true);
                 try {
+                    loadingsound.current.play();
                     const payload = {
                         drg_code: parseInt(formData.drg_code),
                         ...(formData.severity_code && { severity_code: parseInt(formData.severity_code) }),
@@ -196,14 +198,20 @@
 
                     const result = await response.json();
 
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+
                     if (result.success) {
+                        loadingsound.current.pause();
                         setPredictions(result);
                         setLastPrediction(new Date().toLocaleString());
                         onNotification('success', 'Predictions generated successfully!');
                     } else {
+                        loadingsound.current.pause();
                         onNotification('error', result.error || 'Failed to generate predictions');
                     }
                 } catch (error) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    loadingsound.current.pause();
                     onNotification('error', 'Network error: ' + error.message);
                 } finally {
                     setLoading(false);
@@ -425,7 +433,7 @@
             const [inputSevernity, setInputSevernity] = useState('');
             const [loading, setLoading] = useState(false);
             const [result, setResult] = useState(null);
-            const loadingsound = useRef(new Audio('./sfx/loading.mp3'));
+            const loadingsound = useRef(new Audio('./sfx/loading_2.mp3'));
 
             useEffect(() => {
                 fetchModels();
@@ -451,10 +459,11 @@
 
                 setLoading(true);
                 try {
-                    const payload = JSON.stringify({
+                    loadingsound.current.play();
+                    const payload = {
                         drg_code: inputDRG,
                         severity_code: inputSevernity
-                    }, null, 2);
+                    };
                     
                     const response = await fetch(`${API_BASE}/predict/${selectedModel}`, {
                         method: 'POST',
@@ -464,7 +473,10 @@
 
                     const result = await response.json();
 
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+
                     if (result.success) {
+                        loadingsound.current.pause();
                         setResult(result);
                         onNotification('success', 'Prediction completed!');
                     } else {
@@ -558,28 +570,23 @@
             const [inputGender, setInputGender] = useState('');
             const [loading, setLoading] = useState(false);
             const [results, setResults] = useState(null);
-
-            const payload = {
-                        drg_code: inputDRG,
-                        severity_code: inputSevernity,
-                        age_group: inputAge,
-                        gender: inputGender
-            };
+            const loadingsound = useRef(new Audio('./sfx/loading_2.mp3'));
 
             const handlePredictAll = async () => {
-                if (!drgCode || !severityCode || !inputAge || !inputGender) {
-                    onNotification('error', 'Please select a model and provide both DRG code and severity code');
+                if (!inputDRG || !inputSevernity || !inputAge || !inputGender) {
+                    onNotification('error', 'Please provide all required fields: DRG Code, Severity Code, Age Group, and Gender');
                     return;
                 }
 
                 setLoading(true);
                 try {
-                    const payload = JSON.stringify({
+                    loadingsound.current.play();
+                    const payload = {
                         drg_code: inputDRG,
                         severity_code: inputSevernity,
                         age_group: inputAge,
                         gender: inputGender
-                    }, null, 2);
+                    };
                     
                     const response = await fetch(`${API_BASE}/predict/all`, {
                         method: 'POST',
@@ -589,13 +596,19 @@
 
                     const result = await response.json();
 
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+
                     if (result.success) {
+                        loadingsound.current.pause();
                         setResult(result);
                         onNotification('success', 'Prediction completed!');
                     } else {
+                        loadingsound.current.pause();
                         onNotification('error', result.error || 'Prediction failed');
                     }
                 } catch (error) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    loadingsound.current.pause();
                     onNotification('error', 'Network error or server issue');
                 } finally {
                     setLoading(false);
