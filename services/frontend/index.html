@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Big Data Prediction System</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#1e40af',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        hospital: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .prediction-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        .prediction-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .prediction-card.success {
+            border-left-color: #10b981;
+        }
+        .prediction-card.error {
+            border-left-color: #ef4444;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // API Base URL - adjust based on your setup
+        const API_BASE = 'http://127.0.0.1:5001';
+
+        // Theme Context for Dark Mode
+        const ThemeContext = React.createContext();
+
+        const ThemeProvider = ({ children }) => {
+            const [isDark, setIsDark] = useState(() => {
+                const saved = localStorage.getItem('darkMode');
+                return saved ? JSON.parse(saved) : false;
+            });
+
+            useEffect(() => {
+                localStorage.setItem('darkMode', JSON.stringify(isDark));
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, [isDark]);
+
+            const toggleTheme = () => setIsDark(!isDark);
+
+            return (
+                <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+                    {children}
+                </ThemeContext.Provider>
+            );
+        };
+
+        const useTheme = () => {
+            const context = React.useContext(ThemeContext);
+            if (!context) {
+                throw new Error('useTheme must be used within a ThemeProvider');
+            }
+            return context;
+        };
+
+        // Dark Mode Toggle Component
+        const DarkModeToggle = () => {
+            const { isDark, toggleTheme } = useTheme();
+            
+            return (
+                <button
+                    onClick={toggleTheme}
+                    className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+                    title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                    {isDark ? '☀️' : '🌙'}
+                </button>
+            );
+        };
+
+        // Notification Component
+        const Notification = ({ type, message, onClose }) => {
+            const bgColor = type === 'success' ? 'bg-success' : 
+                           type === 'error' ? 'bg-danger' : 
+                           type === 'warning' ? 'bg-warning' : 'bg-primary';
+            
+            useEffect(() => {
+                const timer = setTimeout(() => onClose(), 5000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+
+            return (
+                <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg dark:shadow-gray-800/50 z-50 max-w-md fade-in`}>
+                    <div className="flex items-center justify-between">
+                        <span>{message}</span>
+                        <button onClick={onClose} className="ml-4 text-white hover:text-gray-200 dark:hover:text-gray-300">
+                            ×
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Smart Prediction Component (Main Feature)
+        const SmartPrediction = ({ onNotification }) => {
+            const [formData, setFormData] = useState({
+                drg_code: '',
+                severity_code: '',
+                age_group: '',
+                gender: '',
+                ethnicity: '',
+                race: ''
+            });
+            const [loading, setLoading] = useState(false);
+            const [predictions, setPredictions] = useState(null);
+            const [lastPrediction, setLastPrediction] = useState(null);
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+            };
+
+            const handleSubmit = async () => {
+                if (!formData.drg_code) {
+                    onNotification('error', 'DRG Code is required');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const payload = {
+                        drg_code: parseInt(formData.drg_code),
+                        ...(formData.severity_code && { severity_code: parseInt(formData.severity_code) }),
+                        ...(formData.age_group && { age_group: formData.age_group }),
+                        ...(formData.gender && { gender: formData.gender }),
+                        ...(formData.ethnicity && { ethnicity: formData.ethnicity }),
+                        ...(formData.race && { race: formData.race })
+                    };
+
+                    const response = await fetch(`${API_BASE}/predict/smart`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        setPredictions(result);
+                        setLastPrediction(new Date().toLocaleString());
+                        onNotification('success', 'Predictions generated successfully!');
+                    } else {
+                        onNotification('error', result.error || 'Failed to generate predictions');
+                    }
+                } catch (error) {
+                    onNotification('error', 'Network error: ' + error.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const clearForm = () => {
+                setFormData({
+                    drg_code: '',
+                    severity_code: '',
+                    age_group: '',
+                    gender: '',
+                    ethnicity: '',
+                    race: ''
+                });
+                setPredictions(null);
+            };
+
+            return (
+                <div className="space-y-6">
+                    {/* Input Form */}
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200 flex items-center">
+                            🏥 Hospital Outcome Prediction
+                        </h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* Required Fields */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    DRG Code * <span className="text-red-500">required</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    value={formData.drg_code}
+                                    onChange={(e) => handleInputChange('drg_code', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                    placeholder="e.g., 103"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Severity Code
+                                </label>
+                                <select
+                                    value={formData.severity_code}
+                                    onChange={(e) => handleInputChange('severity_code', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                >
+                                    <option value="">Select severity...</option>
+                                    <option value="1">1 - Minor</option>
+                                    <option value="2">2 - Moderate</option>
+                                    <option value="3">3 - Major</option>
+                                    <option value="4">4 - Extreme</option>
+                                </select>
+                            </div>
+
+                            {/* Optional Fields */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Age Group
+                                </label>
+                                <select
+                                    value={formData.age_group}
+                                    onChange={(e) => handleInputChange('age_group', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                >
+                                    <option value="">Select age group...</option>
+                                    <option value="0-17">0-17 years</option>
+                                    <option value="18-29">18-29 years</option>
+                                    <option value="30-49">30-49 years</option>
+                                    <option value="50-69">50-69 years</option>
+                                    <option value="70+">70+ years</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Gender
+                                </label>
+                                <select
+                                    value={formData.gender}
+                                    onChange={(e) => handleInputChange('gender', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                >
+                                    <option value="">Select gender...</option>
+                                    <option value="M">Male</option>
+                                    <option value="F">Female</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Ethnicity
+                                </label>
+                                <select
+                                    value={formData.ethnicity}
+                                    onChange={(e) => handleInputChange('ethnicity', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                >
+                                    <option value="">Select ethnicity...</option>
+                                    <option value="Hispanic or Latino">Hispanic or Latino</option>
+                                    <option value="Not of Hispanic or Latino Origin">Not of Hispanic or Latino Origin</option>
+                                    <option value="Multi-ethnic">Multi-ethnic</option>
+                                    <option value="Unknown">Unknown</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Race
+                                </label>
+                                <select
+                                    value={formData.race}
+                                    onChange={(e) => handleInputChange('race', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-hospital-500 focus:border-transparent"
+                                >
+                                    <option value="">Select race...</option>
+                                    <option value="White">White</option>
+                                    <option value="Black/African American">Black/African American</option>
+                                    <option value="Other Race">Other Race</option>
+                                    <option value="Multi-racial">Multi-racial</option>
+                                    <option value="Unknown">Unknown</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mt-6">
+                            <button
+                                onClick={handleSubmit}
+                                disabled={loading || !formData.drg_code}
+                                className="flex-1 bg-hospital-500 text-white py-3 px-6 rounded-lg hover:bg-hospital-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                                {loading ? (
+                                    <>
+                                        <div className="loading-spinner mr-2"></div>
+                                        Generating Predictions...
+                                    </>
+                                ) : (
+                                    '🔮 Generate Predictions'
+                                )}
+                            </button>
+                            <button
+                                onClick={clearForm}
+                                className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Prediction Results */}
+                    {predictions && (
+                        <div className="space-y-4 fade-in">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                                        📊 Prediction Results
+                                    </h3>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        Generated: {lastPrediction}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {Object.entries(predictions.results).map(([modelName, result]) => (
+                                        <div 
+                                            key={modelName}
+                                            className={`prediction-card p-4 rounded-lg bg-gray-50 dark:bg-gray-700 ${
+                                                result.error ? 'error' : 'success'
+                                            }`}
+                                        >
+                                            <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2">
+                                                {modelName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                            </h4>
+                                            
+                                            {result.error ? (
+                                                <div className="text-red-600 dark:text-red-400 text-sm">
+                                                    ❌ Error: {result.error}
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <div className="text-2xl font-bold text-hospital-600 dark:text-hospital-400">
+                                                        {typeof result.prediction === 'number' 
+                                                            ? result.prediction.toLocaleString(undefined, {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2
+                                                            })
+                                                            : result.prediction
+                                                        }
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                                        <div>Model: {result.model_type}</div>
+                                                        <div>RMSE: {result.rmse?.toFixed(2)}</div>
+                                                        <div>Time: {new Date(result.timestamp).toLocaleTimeString()}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-4 text-sm text-gray-600 dark:text-gray-400 bg-hospital-50 dark:bg-hospital-900/20 p-3 rounded-lg">
+                                    <strong>Input Data:</strong> {JSON.stringify(predictions.input_data, null, 2)}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Individual Model Prediction Component
+        const SingleModelPrediction = ({ onNotification }) => {
+            const [models, setModels] = useState([]);
+            const [selectedModel, setSelectedModel] = useState('');
+            const [inputData, setInputData] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [result, setResult] = useState(null);
+
+            useEffect(() => {
+                fetchModels();
+            }, []);
+
+            const fetchModels = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/models`);
+                    const data = await response.json();
+                    if (data.success) {
+                        setModels(Object.keys(data.models));
+                    }
+                } catch (error) {
+                    onNotification('error', 'Failed to fetch models');
+                }
+            };
+
+            const handlePredict = async () => {
+                if (!selectedModel || !inputData) {
+                    onNotification('error', 'Please select a model and provide input data');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const payload = JSON.parse(inputData);
+                    
+                    const response = await fetch(`${API_BASE}/predict/${selectedModel}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        setResult(result);
+                        onNotification('success', 'Prediction completed!');
+                    } else {
+                        onNotification('error', result.error || 'Prediction failed');
+                    }
+                } catch (error) {
+                    onNotification('error', 'Invalid JSON or network error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200">
+                        🎯 Single Model Prediction
+                    </h2>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Select Model
+                            </label>
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            >
+                                <option value="">Choose a model...</option>
+                                {models.map(model => (
+                                    <option key={model} value={model}>{model}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input Data (JSON)
+                            </label>
+                            <textarea
+                                value={inputData}
+                                onChange={(e) => setInputData(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-32"
+                                placeholder='{"drg_code": 103, "severity_code": 3}'
+                            />
+                        </div>
+
+                        <button
+                            onClick={handlePredict}
+                            disabled={loading || !selectedModel || !inputData}
+                            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-secondary transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Predicting...' : 'Predict'}
+                        </button>
+
+                        {result && (
+                            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <h3 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Result:</h3>
+                                <pre className="text-sm text-gray-600 dark:text-gray-400 overflow-auto">
+                                    {JSON.stringify(result, null, 2)}
+                                </pre>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // All Models Prediction Component
+        const AllModelsPrediction = ({ onNotification }) => {
+            const [inputData, setInputData] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState(null);
+
+            const handlePredictAll = async () => {
+                if (!inputData) {
+                    onNotification('error', 'Please provide input data');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const payload = JSON.parse(inputData);
+                    
+                    const response = await fetch(`${API_BASE}/predict/all`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        setResults(result);
+                        onNotification('success', 'All predictions completed!');
+                    } else {
+                        onNotification('error', result.error || 'Predictions failed');
+                    }
+                } catch (error) {
+                    onNotification('error', 'Invalid JSON or network error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200">
+                        🎯 All Models Prediction
+                    </h2>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Input Data (JSON)
+                            </label>
+                            <textarea
+                                value={inputData}
+                                onChange={(e) => setInputData(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent h-32"
+                                placeholder='{"drg_code": 103, "severity_code": 3, "age_group": "50-69", "gender": "M"}'
+                            />
+                        </div>
+
+                        <button
+                            onClick={handlePredictAll}
+                            disabled={loading || !inputData}
+                            className="w-full bg-success text-white py-3 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Predicting...' : 'Predict with All Models'}
+                        </button>
+
+                        {results && (
+                            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <h3 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Results:</h3>
+                                <pre className="text-sm text-gray-600 dark:text-gray-400 overflow-auto max-h-96">
+                                    {JSON.stringify(results, null, 2)}
+                                </pre>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Models Management Component
+        const ModelsManagement = ({ onNotification }) => {
+            const [models, setModels] = useState({});
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                fetchModels();
+            }, []);
+
+            const fetchModels = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/models`);
+                    const data = await response.json();
+                    if (data.success) {
+                        setModels(data.models);
+                    }
+                } catch (error) {
+                    onNotification('error', 'Failed to fetch models');
+                }
+            };
+
+            const reloadModels = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(`${API_BASE}/reload-models`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        onNotification('success', result.message);
+                        fetchModels();
+                    } else {
+                        onNotification('error', 'Failed to reload models');
+                    }
+                } catch (error) {
+                    onNotification('error', 'Network error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">
+                            🤖 Models Management
+                        </h2>
+                        <button
+                            onClick={reloadModels}
+                            disabled={loading}
+                            className="bg-warning text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Reloading...' : '🔄 Reload Models'}
+                        </button>
+                    </div>
+                    
+                    {Object.keys(models).length === 0 ? (
+                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                            No models loaded. Try reloading models.
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {Object.entries(models).map(([modelName, modelInfo]) => (
+                                <div key={modelName} className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="font-medium text-gray-800 dark:text-gray-200">
+                                                {modelName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                            </h3>
+                                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                Type: {modelInfo.model_type || 'Unknown'} | 
+                                                RMSE: {modelInfo.rmse?.toFixed(2) || 'N/A'} |
+                                                Features: {modelInfo.feature_columns?.length || 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div className="text-success">✅ Loaded</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // System Status Component
+        const SystemStatus = ({ serverStatus, serverInfo }) => {
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-200">📊 System Status</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className={`p-4 rounded-lg text-center border ${
+                            serverStatus === 'online' 
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                        }`}>
+                            <div className={`text-2xl font-bold ${
+                                serverStatus === 'online' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                                {serverStatus === 'online' ? '🟢' : '🔴'}
+                            </div>
+                            <div className={`text-sm ${
+                                serverStatus === 'online' ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'
+                            }`}>
+                                API Status: {serverStatus}
+                            </div>
+                        </div>
+                        
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center border border-blue-200 dark:border-blue-800">
+                            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">⚡</div>
+                            <div className="text-sm text-blue-800 dark:text-blue-300">ML Pipeline Active</div>
+                        </div>
+                        
+                        <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg text-center border border-purple-200 dark:border-purple-800">
+                            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">🏥</div>
+                            <div className="text-sm text-purple-800 dark:text-purple-300">Hospital Data Ready</div>
+                        </div>
+                    </div>
+
+                    {serverInfo && (
+                        <div className="space-y-4">
+                            <h3 className="font-medium text-gray-800 dark:text-gray-200">System Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600 dark:text-gray-400">Version:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">v1.0.0</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600 dark:text-gray-400">Environment:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">Production</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600 dark:text-gray-400">Spark:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">Active</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600 dark:text-gray-400">MinIO:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">Connected</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Main App Component
+        const App = () => {
+            const [activeTab, setActiveTab] = useState(() => {
+                return localStorage.getItem('activeTab') || 'smart-predict';
+            });
+            const [notifications, setNotifications] = useState([]);
+            const [serverStatus, setServerStatus] = useState('checking');
+            const [serverInfo, setServerInfo] = useState(null);
+
+            // Persist active tab to localStorage
+            useEffect(() => {
+                localStorage.setItem('activeTab', activeTab);
+            }, [activeTab]);
+
+            const addNotification = (type, message) => {
+                const id = Date.now();
+                setNotifications(prev => [...prev, { id, type, message }]);
+            };
+
+            const removeNotification = (id) => {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+            };
+
+            const checkServerStatus = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/health`);
+                    if (response.ok) {
+                        setServerStatus('online');
+                        const infoResponse = await fetch(`${API_BASE}/`);
+                        const info = await infoResponse.json();
+                        setServerInfo(info);
+                    } else {
+                        setServerStatus('error');
+                    }
+                } catch (error) {
+                    setServerStatus('offline');
+                }
+            };
+
+            useEffect(() => {
+                checkServerStatus();
+                const interval = setInterval(checkServerStatus, 30000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const tabs = [
+                { id: 'smart-predict', label: 'Smart Prediction', icon: '🔮' },
+                { id: 'single-model', label: 'Single Model', icon: '🎯' },
+                { id: 'all-models', label: 'All Models', icon: '🎪' },
+                { id: 'models', label: 'Manage Models', icon: '🤖' },
+                { id: 'status', label: 'System Status', icon: '📊' }
+            ];
+
+            return (
+                <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+                    {/* Notifications */}
+                    {notifications.map(notification => (
+                        <Notification
+                            key={notification.id}
+                            type={notification.type}
+                            message={notification.message}
+                            onClose={() => removeNotification(notification.id)}
+                        />
+                    ))}
+
+                    {/* Header */}
+                    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center">
+                                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                                        🏥 Hospital Big Data Prediction System
+                                    </h1>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <DarkModeToggle />
+                                    <div className={`flex items-center space-x-2 text-sm ${
+                                        serverStatus === 'online' ? 'text-green-600 dark:text-green-400' : 
+                                        serverStatus === 'offline' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+                                    }`}>
+                                        <div className={`w-2 h-2 rounded-full ${
+                                            serverStatus === 'online' ? 'bg-green-500' : 
+                                            serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
+                                        }`}></div>
+                                        <span className="capitalize">{serverStatus}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Server Offline Warning */}
+                    {serverStatus === 'offline' && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-600 p-4">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <div className="flex">
+                                    <div className="ml-3">
+                                        <p className="text-sm text-red-700 dark:text-red-300">
+                                            <strong>API Server Offline:</strong> Please ensure the prediction API is running on {API_BASE}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Navigation Tabs */}
+                    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex space-x-8 overflow-x-auto">
+                                {tabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                            activeTab === tab.id
+                                                ? 'border-hospital-500 text-hospital-600 dark:text-hospital-400'
+                                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <span className="mr-2">{tab.icon}</span>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        {activeTab === 'smart-predict' && (
+                            <SmartPrediction onNotification={addNotification} />
+                        )}
+
+                        {activeTab === 'single-model' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <SingleModelPrediction onNotification={addNotification} />
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                                    <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">ℹ️ Single Model Prediction</h3>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                                        <p>This endpoint allows you to get predictions from a specific model by providing:</p>
+                                        <ul className="list-disc ml-4 space-y-1">
+                                            <li>Select the target model (length_of_stay, total_costs, etc.)</li>
+                                            <li>Provide input data in JSON format</li>
+                                            <li>Get detailed prediction with model metadata</li>
+                                        </ul>
+                                        <p className="mt-3"><strong>Example input:</strong></p>
+                                        <pre className="bg-gray-100 dark:bg-gray-700 p-2 rounded text-xs">
+{JSON.stringify({ drg_code: 103, severity_code: 3 }, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'all-models' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <AllModelsPrediction onNotification={addNotification} />
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                                    <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">ℹ️ All Models Prediction</h3>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                                        <p>This endpoint runs predictions across all available models simultaneously:</p>
+                                        <ul className="list-disc ml-4 space-y-1">
+                                            <li>Provide input data once</li>
+                                            <li>Get predictions from all trained models</li>
+                                            <li>Compare different model outputs</li>
+                                            <li>Useful for comprehensive analysis</li>
+                                        </ul>
+                                        <p className="mt-3"><strong>Example input:</strong></p>
+                                        <pre className="bg-gray-100 dark:bg-gray-700 p-2 rounded text-xs">
+{JSON.stringify({
+  drg_code: 103,
+  severity_code: 3,
+  age_group: "50-69",
+  gender: "M"
+}, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'models' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <ModelsManagement onNotification={addNotification} />
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                                    <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">ℹ️ Model Management</h3>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                                        <p>Manage and monitor your machine learning models:</p>
+                                        <ul className="list-disc ml-4 space-y-1">
+                                            <li><strong>View Models:</strong> See all loaded models with their types and performance metrics</li>
+                                            <li><strong>Reload Models:</strong> Refresh models from MinIO storage</li>
+                                            <li><strong>Model Info:</strong> Check RMSE, features, and model types</li>
+                                        </ul>
+                                        <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                                            <p className="text-yellow-800 dark:text-yellow-300"><strong>Note:</strong> Models are automatically loaded from MinIO. Use reload if new models have been trained.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'status' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <SystemStatus serverStatus={serverStatus} serverInfo={serverInfo} />
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/50">
+                                    <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">🏗️ System Architecture</h3>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400 space-y-3">
+                                        <div>
+                                            <h4 className="font-medium text-gray-800 dark:text-gray-200">Data Pipeline:</h4>
+                                            <p>Kafka → Data Consumer → MinIO → Spark Trainer → Models</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-medium text-gray-800 dark:text-gray-200">Services:</h4>
+                                            <ul className="list-disc ml-4">
+                                                <li>Data Producer: Streams hospital data</li>
+                                                <li>Data Consumer: Processes and stores data</li>
+                                                <li>Spark Trainer: Trains ML models</li>
+                                                <li>Prediction API: Serves trained models</li>
+                                                <li>Streamlit Monitor: Data visualization</li>
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-medium text-gray-800 dark:text-gray-200">Technologies:</h4>
+                                            <ul className="list-disc ml-4">
+                                                <li>Apache Spark (ML training)</li>
+                                                <li>Apache Kafka (streaming)</li>
+                                                <li>MinIO (object storage)</li>
+                                                <li>Flask (API)</li>
+                                                <li>React (frontend)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-12">
+                        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                                <p className="text-gray-700 dark:text-gray-300">Hospital Big Data Prediction System</p>
+                                <p className="mt-1">Machine Learning powered healthcare analytics using Apache Spark, Kafka, and MinIO</p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        ReactDOM.render(
+            <ThemeProvider>
+                <App />
+            </ThemeProvider>, 
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>

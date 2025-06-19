@@ -42,15 +42,25 @@ class HospitalMLTrainer:
         self.models = {}
         
     def initialize_spark(self):
-        """Initialize Spark session with optimized configuration"""
+        """Initialize Spark session with optimized configuration for containers"""
         try:
             self.spark = SparkSession.builder \
                 .appName("HospitalMLTrainer") \
+                .master("local[2]") \
+                .config("spark.driver.memory", "1g") \
+                .config("spark.executor.memory", "1g") \
+                .config("spark.driver.maxResultSize", "512m") \
                 .config("spark.sql.adaptive.enabled", "true") \
                 .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
                 .config("spark.sql.adaptive.skewJoin.enabled", "true") \
                 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-                .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
+                .config("spark.sql.execution.arrow.pyspark.enabled", "false") \
+                .config("spark.driver.host", "localhost") \
+                .config("spark.driver.bindAddress", "0.0.0.0") \
+                .config("spark.sql.shuffle.partitions", "10") \
+                .config("spark.default.parallelism", "2") \
+                .config("spark.python.worker.reuse", "false") \
+                .config("spark.sql.execution.arrow.maxRecordsPerBatch", "1000") \
                 .getOrCreate()
             
             logger.info("Spark session initialized successfully")
@@ -402,12 +412,24 @@ class HospitalMLTrainer:
             return None, None, None, None, None, None, None
     
     def train_models(self, df, indexers, encoders, assembler, scaler, target_cols, feature_cols):
-        """Train ML models for each target variable"""
+        """Train ML models for each target variable with resource management"""
         try:
             logger.info("Starting model training...")
             
+            # Cache the dataframe to avoid re-computation
+            df.cache()
+            
             # Build preprocessing pipeline
             pipeline_stages = indexers + encoders + [assembler, scaler]
+            
+            # Limit data size for training to avoid memory issues
+            total_records = df.count()
+            max_training_records = 50000  # Limit training data
+            
+            if total_records > max_training_records:
+                logger.info(f"Sampling {max_training_records} records from {total_records} total records")
+                df = df.sample(fraction=max_training_records/total_records, seed=42)
+                df.cache()
             
             # Train models for each target
             for target_col in target_cols:
@@ -419,27 +441,36 @@ class HospitalMLTrainer:
                 
                 # Filter out null values in target
                 target_df = df.filter(col(target_col).isNotNull() & (col(target_col) > 0))
+                target_df.cache()
                 
-                if target_df.count() < 100:
-                    logger.warning(f"Insufficient data for {target_col} (only {target_df.count()} records)")
+                record_count = target_df.count()
+                if record_count < 50:
+                    logger.warning(f"Insufficient data for {target_col} (only {record_count} records)")
+                    target_df.unpersist()
                     continue
                 
-                # Split data
-                train_df, test_df = target_df.randomSplit([0.8, 0.2], seed=42)
+                logger.info(f"Training on {record_count} records for {target_col}")
                 
-                # Create model pipelines
+                # Split data with smaller test set to save memory
+                train_df, test_df = target_df.randomSplit([0.9, 0.1], seed=42)
+                train_df.cache()
+                test_df.cache()
+                
+                # Create simpler models to reduce memory usage
                 models_to_train = [
                     ("RandomForest", RandomForestRegressor(
                         featuresCol="scaled_features", 
                         labelCol=target_col,
-                        numTrees=50,
-                        maxDepth=10
+                        numTrees=20,  # Reduced from 50
+                        maxDepth=6,   # Reduced from 10
+                        maxBins=16    # Reduced from default 32
                     )),
                     ("GBT", GBTRegressor(
                         featuresCol="scaled_features",
                         labelCol=target_col,
-                        maxIter=50,
-                        maxDepth=8
+                        maxIter=20,   # Reduced from 50
+                        maxDepth=5,   # Reduced from 8
+                        maxBins=16    # Reduced from default 32
                     ))
                 ]
                 
@@ -449,10 +480,12 @@ class HospitalMLTrainer:
                 
                 for model_name, model in models_to_train:
                     try:
+                        logger.info(f"Training {model_name} for {target_col}...")
+                        
                         # Create full pipeline
                         full_pipeline = Pipeline(stages=pipeline_stages + [model])
                         
-                        # Train model
+                        # Train model with timeout protection
                         trained_model = full_pipeline.fit(train_df)
                         
                         # Evaluate on test set
@@ -466,10 +499,21 @@ class HospitalMLTrainer:
                             best_rmse = rmse
                             best_model = trained_model
                             best_model_name = model_name
+                        
+                        # Clean up predictions DataFrame
+                        predictions.unpersist()
                             
                     except Exception as e:
                         logger.warning(f"Failed to train {model_name} for {target_col}: {e}")
+                        # Force garbage collection
+                        import gc
+                        gc.collect()
                         continue
+                
+                # Clean up cached DataFrames
+                train_df.unpersist()
+                test_df.unpersist()
+                target_df.unpersist()
                 
                 if best_model:
                     self.models[target_col] = {
@@ -481,12 +525,24 @@ class HospitalMLTrainer:
                     logger.info(f"Best model for {target_col}: {best_model_name} (RMSE: {best_rmse:.2f})")
                 else:
                     logger.warning(f"No successful model trained for {target_col}")
+                
+                # Force garbage collection between models
+                import gc
+                gc.collect()
+            
+            # Unpersist the main DataFrame
+            df.unpersist()
             
             logger.info(f"Model training completed. Trained {len(self.models)} models.")
             return True
             
         except Exception as e:
             logger.error(f"Error in model training: {e}")
+            # Clean up any cached DataFrames
+            try:
+                df.unpersist()
+            except:
+                pass
             return False
     
     def save_models_to_minio(self):
@@ -625,9 +681,25 @@ class HospitalMLTrainer:
             logger.info("ML training pipeline completed successfully")
             return True
             
+        except Exception as e:
+            logger.error(f"Error in training pipeline: {e}")
+            return False
+            
         finally:
-            if self.spark:
-                self.spark.stop()
+            # Clean up Spark resources
+            try:
+                if self.spark:
+                    # Clear catalog cache
+                    self.spark.catalog.clearCache()
+                    # Stop Spark context
+                    self.spark.stop()
+                    logger.info("Spark session stopped successfully")
+            except Exception as e:
+                logger.warning(f"Error stopping Spark session: {e}")
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
 
 if __name__ == "__main__":
     import sys

@@ -135,9 +135,10 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: hospital-data
       MINIO_MODEL_BUCKET: hospital-models
-      SPARK_MASTER: local[*]
-      SPARK_DRIVER_MEMORY: 2g
-      SPARK_EXECUTOR_MEMORY: 2g
+      SPARK_MASTER: local[2]
+      SPARK_DRIVER_MEMORY: 1g
+      SPARK_EXECUTOR_MEMORY: 1g
+      PYSPARK_PYTHON: python3
     volumes:
       - ./services/spark-trainer:/app
       - spark-models:/app/models
@@ -147,9 +148,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4g
+          memory: 3g
+          cpus: '2.0'
         reservations:
-          memory: 2g
+          memory: 1g
+          cpus: '1.0'
 
   # Prediction API Service
   api:
