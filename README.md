@@ -1,20 +1,33 @@
 # Big Data & Data Lakehouse Final Project
-# Hospital Cost and Duration Prediction System
+# Hospital Prediction System with ML Pipeline
 
-## Overview
-This project implements a big data system for predicting hospital costs and length of stay using the 2015 De-identified NY Inpatient Discharge SPARCS dataset from Kaggle.
+**Kelompok 4**
 
-## Architecture
-- **Kafka**: Data streaming and message queuing
-- **MinIO**: S3-compatible object storage for data lake
-- **Docker**: Containerized deployment
-- **Data Lakehouse**: Storage and processing architecture
+| Nama                      | NRP        | Job Description |
+| ------------------------- | ---------- | --------------- |
+| Nathan Kho Pancras        | 5027231002 | Apache Spark + API Developer |
+| Rafael Jonathan Arnoldus  | 5027231006 | Streamlit Developer |
+| Michael Kenneth Salim     | 5027231008 | UI Developer |
+| Rafael Ega Krisaditya     | 5027231025 | Kafka & MinIO Developer |
+| Fico Simhanandi           | 5027231030 | DuckDB Developer | 
 
-## Quick Start
+## 🏥 Overview
+This project implements a comprehensive big data system for predicting hospital outcomes including costs, length of stay, and charges using the 2015 De-identified NY Inpatient Discharge SPARCS dataset. The system features real-time data streaming, machine learning training, and an interactive web interface.
+
+## 🏗️ Architecture
+- **Apache Kafka**: Real-time data streaming and message queuing
+- **Streamlit**: Real-time monitoring dashboard
+- **Apache Spark**: Large-scale ML model training and data processing
+- **MinIO**: S3-compatible object storage for data lakehouse
+- **DuckDB**: High-performance analytical database for OLAP queries and data exploration
+- **Flask API**: RESTful prediction service
+- **React Frontend**: Interactive web interface
+
+## 🚀 Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- uv package manager
+- uv package manager (for Streamlit monitor)
 
 ### Setup Instructions
 
@@ -23,82 +36,211 @@ This project implements a big data system for predicting hospital costs and leng
    cp .env.example .env
    ```
 
-2. **Setup**
+2. **System Setup**
    ```bash
+   # Linux/macOS
    ./setup.sh
-   ```
-
-   or,
-
-   ```
+   
+   # Windows
    ./setup.bat
    ```
 
-3. **Run the System**
+3. **Start the Complete Pipeline**
    ```bash
-   ./manage.sh [ARGS]
+   # Linux/macOS - Start services in proper order
+   ./manage.sh start-pipeline
+   
+   # Windows
+   ./manage.bat start-pipeline
+   
+   # Or start all services at once (with building)
+   ./manage.sh start
    ```
 
-   or,
+## 🔧 Management Commands
 
-   ```
-   ./manage.bat [ARGS]
-   ```
+### Linux/macOS (`./manage.sh`)
+```bash
+./manage.sh start              # Start + build all services
+./manage.sh start-pipeline     # Start services in proper order
+./manage.sh stop               # Stop all services
+./manage.sh status             # Show service status
+./manage.sh logs               # Show all logs
+./manage.sh debug              # Debug service issues
+./manage.sh check-data         # Verify data availability
+./manage.sh train              # Manually trigger ML training
+./manage.sh test-data          # Test data loading
+./manage.sh api-test           # Test prediction API
+./manage.sh clean              # Clean up all data
+```
 
-## Services
+### Windows (`./manage.bat`)
+Same commands available for Windows with `.bat` extension.
 
-### Kafka Cluster
-- **Zookeeper**: `localhost:2181`
-- **Kafka Broker**: `localhost:9092`
-- **Kafka UI**: `http://localhost:8080`
+## 🎯 Services & Endpoints
 
-### MinIO Object Storage
-- **MinIO Console**: `http://localhost:9090`
+### 🌐 Web Interfaces
+- **Frontend Dashboard**: `What you run it with.` (Main prediction interface)
+- **Kafka UI**: `http://localhost:8080` (Message queue monitoring)
+- **MinIO Console**: `http://localhost:9090` (Object storage management)
+- **Streamlit Monitor**: `http://localhost:8501` (Real-time data monitoring)
+- **Streamlit DuckDB**: `http://localhost:8502` (Real-time data query)
+
+### 🔌 API Endpoints
+- **Prediction API**: `http://localhost:5001`
+  - `GET /` - API documentation
+  - `GET /health` - Health check
+  - `GET /models` - List available models
+  - `POST /predict/smart` - Smart prediction (minimal input)
+  - `POST /predict/<model>` - Single model prediction
+  - `POST /predict/all` - All models prediction
+
+### 🗄️ Data Infrastructure
+- **Kafka Broker**: `localhost:29092`
 - **MinIO API**: `localhost:9000`
-- **Default Credentials**: `minioadmin` / `minioadmin`
+- **Zookeeper**: `localhost:2181`
 
-### Data Pipeline
-- **Data Producer**: Downloads dataset and streams to Kafka
-- **Data Consumer**: Consumes from Kafka and stores to MinIO
-- **Storage Formats**: JSON (raw) and Parquet (optimized)
+## 🤖 Machine Learning Pipeline
 
-## Monitoring
-- **Kafka UI**: `http://localhost:8080` - Monitor topics and messages
-- **MinIO Console**: `http://localhost:9090` - Monitor object storage
-- **Logs**: `docker-compose logs -f [service-name]`
-- **Storage Monitor**: `docker exec -it data-consumer python monitor.py`
+### Models Trained
+1. **Length of Stay Prediction**
+   - Predicts hospital stay duration in days
+   - Models: RandomForest, GBT
+   - RMSE: ~2.5 days
 
-## Project Structure
+2. **Total Costs Prediction**
+   - Predicts hospital treatment costs
+   - Models: RandomForest, GBT
+   - RMSE: ~$2,700
+
+3. **Total Charges Prediction**
+   - Predicts hospital billing charges
+   - Models: RandomForest, GBT
+   - RMSE: ~$4,600
+
+### Features Used
+- DRG Code (Diagnosis Related Group)
+- Severity of Illness Code
+- Age Group
+- Gender
+- Race and Ethnicity
+- Admission Type
+- Patient Disposition
+- Hospital County
+- Plus 10+ additional clinical features
+
+## 📊 Data Flow
+
+```
+Dataset (Kaggle) → Kafka Producer → Streamlit → Kafka Consumer → MinIO → Spark Trainer → ML Models → Prediction API → Frontend Dashboard
+                                                                    ↓
+                                                               DuckDB Analytics ← → Interactive Streamlit Dashboard
+```
+
+## 🏗️ Project Structure
 ```
 FP_BigData/
-├── docker-compose.yml          # Main orchestration file
+├── docker-compose.yml              # Main orchestration
+├── manage.sh / manage.bat          # Management scripts
+├── setup.sh / setup.bat           # Setup scripts
 ├── services/
-│   ├── data-producer/         # Kafka producer service
+│   ├── data-producer/             # Kafka producer
+│   │   ├── producer.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── data-consumer/             # Kafka to MinIO consumer
+│   │   ├── consumer.py
+│   │   ├── monitor.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── spark-trainer/             # ML model training
+│   │   ├── spark-trainer.py
+│   │   ├── test_data_loading.py
+│   │   ├── monitor.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── api/                       # Prediction REST API
+│   │   ├── api.py
+│   │   ├── test_api.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── streamlit-monitor/         # Real-time monitoring
+│   │   ├── app.py
+│   │   ├── pyproject.toml
+│   │   ├── requirements.txt
+│   │   └── uv.lock
+│   ├── duckdb-query/              # DuckDB Analytics Service
+│   │   ├── main.py                # FastAPI application
+│   │   ├── streamlit_app.py       # Interactive interface
+│   │   ├── start_services.sh      # Service startup script
 │   │   ├── Dockerfile
 │   │   ├── requirements.txt
-│   │   └── producer.py
-│   └── data-consumer/         # Kafka to MinIO consumer
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       ├── consumer.py
-│       └── monitor.py
-├── data/                      # Dataset storage
-└── README.md
+│   │   └── README.md              # Service documentation
+│   └── frontend/                  # Web interface
+│       └── index.html
+├── data/                          # Local data storage
+└── README.md                      # This file
 ```
 
-## Dataset Information
+## 🎮 Usage Examples
+
+### Smart Prediction (Recommended)
+```bash
+curl -X POST http://localhost:5001/predict/smart \
+  -H "Content-Type: application/json" \
+  -d '{"drg_code": 103, "severity_code": 3}'
+```
+
+### Frontend Usage
+1. Serve frontend
+2. Enter DRG Code (required) and optional fields
+3. Click "Generate Predictions"
+4. View results from all trained models
+
+### Manual Model Training
+```bash
+./manage.sh train
+# Monitor with: docker-compose logs -f spark-trainer
+```
+
+## 📈 Monitoring & Debugging
+
+### Real-time Monitoring
+- **Streamlit Dashboard**: Live data visualization and metrics
+- **Kafka UI**: Message flow and topic monitoring
+- **MinIO Console**: Data storage and file management
+- **DuckDB Analytics Dashboard**: `http://localhost:8502` - Interactive query performance and data exploration
+
+### System Health
+```bash
+./manage.sh status          # Service status and resource usage
+./manage.sh debug           # Comprehensive debugging info
+./manage.sh check-data      # Verify data pipeline
+```
+
+### Logs
+```bash
+docker-compose logs -f [service-name]
+# Examples:
+docker-compose logs -f spark-trainer
+docker-compose logs -f api
+docker-compose logs -f data-consumer
+docker-compose logs -f duckdb-analytics  
+```
+
+## 🔬 Technical Details
+
+### ML Training Process
+1. **Data Ingestion**: Real-time streaming via Kafka
+2. **Data Storage**: Organized in MinIO with metadata
+3. **Feature Engineering**: Automated preprocessing pipeline
+4. **Model Training**: Multiple algorithms with cross-validation
+5. **Model Evaluation**: RMSE-based performance metrics
+6. **Model Deployment**: Automatic model serving via API
+
+## 📋 Dataset Information
 - **Source**: 2015 De-identified NY Inpatient Discharge SPARCS
 - **URL**: https://www.kaggle.com/datasets/jonasalmeida/2015-deidentified-ny-inpatient-discharge-sparcs
-- **Features**: Patient demographics, diagnoses, procedures, costs, length of stay
-- **Size**: Large dataset requiring big data processing techniques
-
-## Next Steps
-This is the foundation setup. The system will be extended with:
-- Data processing components (Spark/Hadoop)
-- Machine learning pipeline
-- Data lakehouse storage (Delta Lake)
-- Prediction API
-- Visualization dashboard
-
-## Development
-To add new services or modify existing ones, follow the Docker Compose pattern and add services to the `docker-compose.yml` file.
+- **Records**: 2.3M+ hospital discharge records
+- **Features**: 34+ clinical and administrative features
+- **Size**: ~900MB CSV file
