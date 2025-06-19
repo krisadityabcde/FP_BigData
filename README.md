@@ -19,6 +19,7 @@ This project implements a comprehensive big data system for predicting hospital 
 - **Streamlit**: Real-time monitoring dashboard
 - **Apache Spark**: Large-scale ML model training and data processing
 - **MinIO**: S3-compatible object storage for data lakehouse
+- **DuckDB**: High-performance analytical database for OLAP queries and data exploration
 - **DuckDB**: 
 - **Flask API**: RESTful prediction service
 - **React Frontend**: Interactive web interface
@@ -133,6 +134,8 @@ Same commands available for Windows with `.bat` extension.
 
 ```
 Dataset (Kaggle) → Kafka Producer → Streamlit → Kafka Consumer → MinIO → Spark Trainer → ML Models → Prediction API → Frontend Dashboard
+                                                                    ↓
+                                                               DuckDB Analytics ← → Interactive Streamlit Dashboard
 ```
 
 ## 🏗️ Project Structure
@@ -167,6 +170,33 @@ FP_BigData/
 │   │   ├── pyproject.toml
 │   │   ├── requirements.txt
 │   │   └── uv.lock
+│   ├── duckdb-query/              # DuckDB Analytics Service
+│   │   ├── main.py                # FastAPI application
+│   │   ├── streamlit_app.py       # Interactive interface
+│   │   ├── start_services.sh      # Service startup script
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── spark-trainer/             # ML model training
+│   │   ├── spark-trainer.py
+│   │   ├── test_data_loading.py
+│   │   ├── monitor.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── api/                       # Prediction REST API
+│   │   ├── api.py
+│   │   ├── test_api.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── streamlit-monitor/         # Real-time monitoring
+│   │   ├── app.py
+│   │   ├── pyproject.toml
+│   │   ├── requirements.txt
+│   │   └── README.md              # Service documentation
+│   └── frontend/                  # Web interface
+│       └── index.html
+├── data/                          # Local data storage
+└── README.md                      # This file
+│   │   └── uv.lock
 │   └── frontend/                  # Web interface
 │       └── index.html
 └── data/                          # Local data storage
@@ -199,6 +229,7 @@ curl -X POST http://localhost:5001/predict/smart \
 - **Streamlit Dashboard**: Live data visualization and metrics
 - **Kafka UI**: Message flow and topic monitoring
 - **MinIO Console**: Data storage and file management
+- **DuckDB Analytics Dashboard**: `http://localhost:8502` - Interactive query performance and data exploration
 
 ### System Health
 ```bash
@@ -214,6 +245,7 @@ docker-compose logs -f [service-name]
 docker-compose logs -f spark-trainer
 docker-compose logs -f api
 docker-compose logs -f data-consumer
+docker-compose logs -f duckdb-analytics  
 ```
 
 ## 🔬 Technical Details

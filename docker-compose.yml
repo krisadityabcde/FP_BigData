@@ -206,6 +206,36 @@ services:
     command: ["python", "monitor.py"]
     profiles:
       - monitoring
+  # DuckDB Query Service (Interactive Analytics)
+  duckdb-query:
+    build:
+      context: ./services/duckdb-query
+      dockerfile: Dockerfile
+    container_name: duckdb-analytics
+    depends_on:
+      - minio
+    ports:
+      - "8002:8002"  # FastAPI service
+      - "8502:8503"  # Streamlit interface (internal port 8503 to avoid conflict with potential streamlit-monitor)
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      QUERY_SERVICE_HOST: 0.0.0.0
+      QUERY_SERVICE_PORT: 8002
+      STREAMLIT_HOST: 0.0.0.0
+      STREAMLIT_PORT: 8503
+    volumes:
+      - ./services/duckdb-query:/app
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   bigdata-network:
