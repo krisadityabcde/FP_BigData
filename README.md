@@ -19,6 +19,7 @@ This project implements a comprehensive big data system for predicting hospital 
 - **Streamlit**: Real-time monitoring dashboard
 - **Apache Spark**: Large-scale ML model training and data processing
 - **MinIO**: S3-compatible object storage for data lakehouse
+- **DuckDB**: 
 - **Flask API**: RESTful prediction service
 - **React Frontend**: Interactive web interface
 
@@ -33,7 +34,6 @@ This project implements a comprehensive big data system for predicting hospital 
 1. **Configure Environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your Kaggle credentials
    ```
 
 2. **System Setup**
@@ -81,9 +81,10 @@ Same commands available for Windows with `.bat` extension.
 
 ### 🌐 Web Interfaces
 - **Frontend Dashboard**: `What you run it with.` (Main prediction interface)
-- **Streamlit Monitor**: `http://localhost:8501` (Real-time data monitoring)
 - **Kafka UI**: `http://localhost:8080` (Message queue monitoring)
 - **MinIO Console**: `http://localhost:9090` (Object storage management)
+- **Streamlit Monitor**: `http://localhost:8501` (Real-time data monitoring)
+- **Streamlit DuckDB**: `http://localhost:8502` (Real-time data query)
 
 ### 🔌 API Endpoints
 - **Prediction API**: `http://localhost:5001`
@@ -95,7 +96,7 @@ Same commands available for Windows with `.bat` extension.
   - `POST /predict/all` - All models prediction
 
 ### 🗄️ Data Infrastructure
-- **Kafka Broker**: `localhost:9092`
+- **Kafka Broker**: `localhost:29092`
 - **MinIO API**: `localhost:9000`
 - **Zookeeper**: `localhost:2181`
 
