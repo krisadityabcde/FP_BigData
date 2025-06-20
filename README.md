@@ -81,19 +81,19 @@ Same commands available for Windows with `.bat` extension.
 
 ### 🌐 Web Interfaces
 - **Frontend Dashboard**: `What you run it with.` (Main prediction interface)
-- ![image](https://github.com/user-attachments/assets/b02d119b-8812-44af-95e1-1f00c8cdc5ac)
+  ![image](https://github.com/user-attachments/assets/b02d119b-8812-44af-95e1-1f00c8cdc5ac)
 
 - **Kafka UI**: `http://localhost:8080` (Message queue monitoring)
-- ![image](https://github.com/user-attachments/assets/e63187b0-38c4-44d3-9601-8c851750ff83)
+  ![image](https://github.com/user-attachments/assets/e63187b0-38c4-44d3-9601-8c851750ff83)
 
 - **MinIO Console**: `http://localhost:9090` (Object storage management)
-- ![image](https://github.com/user-attachments/assets/e6879d7b-35cd-4f25-959c-3b1768a0c1a6)
+  ![image](https://github.com/user-attachments/assets/e6879d7b-35cd-4f25-959c-3b1768a0c1a6)
 
 - **Streamlit Monitor**: `http://localhost:8501` (Real-time data monitoring)
-- ![image](https://github.com/user-attachments/assets/15f27830-bbd5-4dfc-bfe3-bcbc4af7157f)
-- 
+  ![image](https://github.com/user-attachments/assets/15f27830-bbd5-4dfc-bfe3-bcbc4af7157f)
+  
 - **Streamlit DuckDB**: `http://localhost:8502` (Real-time data query)
-- ![image](https://github.com/user-attachments/assets/bd1aec13-8f9a-4ced-bf9a-ad5fbaf11d34)
+  ![image](https://github.com/user-attachments/assets/bd1aec13-8f9a-4ced-bf9a-ad5fbaf11d34)
 
 
 ### 🔌 API Endpoints
