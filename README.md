@@ -15,6 +15,8 @@
 This project implements a comprehensive big data system for predicting hospital outcomes including costs, length of stay, and charges using the 2015 De-identified NY Inpatient Discharge SPARCS dataset. The system features real-time data streaming, machine learning training, and an interactive web interface.
 
 ## 🏗️ Architecture
+![image](https://github.com/user-attachments/assets/193dbc1c-d8c0-4b78-b4a0-9a687fdc3700)
+
 - **Apache Kafka**: Real-time data streaming and message queuing
 - **Streamlit**: Real-time monitoring dashboard
 - **Apache Spark**: Large-scale ML model training and data processing
