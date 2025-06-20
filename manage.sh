@@ -130,7 +130,7 @@ except Exception as e:
     "start-pipeline")
         echo "🚀 Starting complete data pipeline..."
         echo "1. Starting infrastructure services..."
-        docker-compose up -d zookeeper kafka minio kafka-ui
+        docker-compose up -d zookeeper kafka minio kafka-ui duckdb-query
         echo "   Waiting for services to be ready..."
         sleep 15
         

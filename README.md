@@ -25,6 +25,13 @@ This project implements a comprehensive big data system for predicting hospital 
 - **Flask API**: RESTful prediction service
 - **React Frontend**: Interactive web interface
 
+## 📋 Dataset Information
+- **Source**: 2015 De-identified NY Inpatient Discharge SPARCS
+- **URL**: https://www.kaggle.com/datasets/jonasalmeida/2015-deidentified-ny-inpatient-discharge-sparcs
+- **Records**: 2.3M+ hospital discharge records
+- **Features**: 34+ clinical and administrative features
+- **Size**: ~900MB CSV file
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -79,27 +86,62 @@ This project implements a comprehensive big data system for predicting hospital 
 ### Windows (`./manage.bat`)
 Same commands available for Windows with `.bat` extension.
 
+After running either `./manage.sh start` or `./manage.sh start-pipeline`, this should appear:
+
+![alt text](assets/docker1.png)
+
+![alt text](assets/docker2.png)
+
+![alt text](assets/docker3.png)
+
+![alt text](assets/docker4.png)
+
+![alt text](assets/docker5.png)
+
 ## 🎯 Services & Endpoints
 
 ### 🌐 Web Interfaces
 - **Frontend Dashboard**: `What you run it with.` (Main prediction interface)
-  ![image](https://github.com/user-attachments/assets/b02d119b-8812-44af-95e1-1f00c8cdc5ac)
+
+![alt text](assets/fe.png)
+
+![image](https://github.com/user-attachments/assets/b02d119b-8812-44af-95e1-1f00c8cdc5ac)
+
+Tabs:
+1. 🔮 Smart Prediction: Main prediction interface requiring only DRG code
+2. 🎯 Single Model: Target specific models with detailed input
+3. 🤖 Manage Models: View, reload, and monitor ML models
+4. 📊 System Status: Real-time system health and architecture overview
 
 - **Kafka UI**: `http://localhost:8080` (Message queue monitoring)
-  ![image](https://github.com/user-attachments/assets/e63187b0-38c4-44d3-9601-8c851750ff83)
+  
+![image](https://github.com/user-attachments/assets/e63187b0-38c4-44d3-9601-8c851750ff83)
+
+![alt text](assets/kafka.png)
 
 - **MinIO Console**: `http://localhost:9090` (Object storage management)
-  ![image](https://github.com/user-attachments/assets/e6879d7b-35cd-4f25-959c-3b1768a0c1a6)
+
+![image](https://github.com/user-attachments/assets/e6879d7b-35cd-4f25-959c-3b1768a0c1a6)
+
+![alt text](assets/minio.png)
 
 - **Streamlit Monitor**: `http://localhost:8501` (Real-time data monitoring)
-  ![image](https://github.com/user-attachments/assets/15f27830-bbd5-4dfc-bfe3-bcbc4af7157f)
+
+![image](https://github.com/user-attachments/assets/15f27830-bbd5-4dfc-bfe3-bcbc4af7157f)
+
+![alt text](assets/streamlit.png)
   
 - **Streamlit DuckDB**: `http://localhost:8502` (Real-time data query)
-  ![image](https://github.com/user-attachments/assets/bd1aec13-8f9a-4ced-bf9a-ad5fbaf11d34)
+  
+![image](https://github.com/user-attachments/assets/bd1aec13-8f9a-4ced-bf9a-ad5fbaf11d34)
 
+![alt text](assets/duckdb.png)
 
 ### 🔌 API Endpoints
 - **Prediction API**: `http://localhost:5001`
+ 
+![alt text](assets/api.png)
+
   - `GET /` - API documentation
   - `GET /health` - Health check
   - `GET /models` - List available models
@@ -118,21 +160,18 @@ Same commands available for Windows with `.bat` extension.
 1. **Length of Stay Prediction**
    - Predicts hospital stay duration in days
    - Models: RandomForest, GBT
-   - RMSE: ~2.5 days
 
 2. **Total Costs Prediction**
    - Predicts hospital treatment costs
    - Models: RandomForest, GBT
-   - RMSE: ~$2,700
 
 3. **Total Charges Prediction**
    - Predicts hospital billing charges
    - Models: RandomForest, GBT
-   - RMSE: ~$4,600
 
 ### Features Used
-- DRG Code (Diagnosis Related Group)
-- Severity of Illness Code
+- DRG Code (Diagnosis Related Group) - **REQUIRED**
+- Severity of Illness Code - **REQUIRED**
 - Age Group
 - Gender
 - Race and Ethnicity
@@ -181,28 +220,7 @@ FP_BigData/
 │   │   └── requirements.txt
 │   └── frontend/                  # Web interface
 │       └── index.html
-└── README.md                      # This file
-```
-
-## 🎮 Usage Examples
-
-### Smart Prediction (Recommended)
-```bash
-curl -X POST http://localhost:5001/predict/smart \
-  -H "Content-Type: application/json" \
-  -d '{"drg_code": 103, "severity_code": 3}'
-```
-
-### Frontend Usage
-1. Serve frontend
-2. Enter DRG Code (required) and optional fields
-3. Click "Generate Predictions"
-4. View results from all trained models
-
-### Manual Model Training
-```bash
-./manage.sh train
-# Monitor with: docker-compose logs -f spark-trainer
+└── README.md
 ```
 
 ## 📈 Monitoring & Debugging
@@ -224,7 +242,7 @@ docker-compose logs -f data-consumer
 docker-compose logs -f duckdb-analytics  
 ```
 
-## 🔬 Technical Details
+## 🔬 Other Details
 
 ### ML Training Process
 1. **Data Ingestion**: Real-time streaming via Kafka
@@ -234,9 +252,24 @@ docker-compose logs -f duckdb-analytics
 5. **Model Evaluation**: RMSE-based performance metrics
 6. **Model Deployment**: Automatic model serving via API
 
-## 📋 Dataset Information
-- **Source**: 2015 De-identified NY Inpatient Discharge SPARCS
-- **URL**: https://www.kaggle.com/datasets/jonasalmeida/2015-deidentified-ny-inpatient-discharge-sparcs
-- **Records**: 2.3M+ hospital discharge records
-- **Features**: 34+ clinical and administrative features
-- **Size**: ~900MB CSV file
+### 🏥 Healthcare Impact & Benefits
+
+#### 1. **Hospital Operations Optimization**
+- **Bed Management**: Predict patient flow and optimize bed allocation
+- **Staffing**: Forecast resource needs based on expected patient volume and acuity
+- **Discharge Planning**: Proactively plan post-acute care based on predicted LOS
+
+#### 2. **Financial Planning & Management**
+- **Budget Forecasting**: Predict revenue and costs for better financial planning
+- **Insurance Pre-authorization**: Provide data-driven estimates for insurance approval
+- **Cost Control**: Identify cases that may exceed expected costs for intervention
+
+#### 3. **Patient Care Enhancement**
+- **Treatment Planning**: Inform clinical decisions with data-driven insights
+- **Risk Stratification**: Identify high-cost/long-stay patients for care management
+- **Quality Improvement**: Monitor outcomes against predictions to improve protocols
+
+#### 4. **Healthcare System Benefits**
+- **Population Health**: Analyze trends across demographics and conditions
+- **Policy Making**: Support healthcare policy decisions with predictive analytics
+- **Research**: Enable retrospective and prospective clinical research
