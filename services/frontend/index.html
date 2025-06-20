@@ -418,7 +418,7 @@
             );
         };
 
-        // Individual Model Prediction Component
+        // Single Model Prediction Component
         const SingleModelPrediction = ({ onNotification }) => {
             const [models, setModels] = useState([]);
             const [selectedModel, setSelectedModel] = useState('');
@@ -426,22 +426,27 @@
             const [inputSevernity, setInputSevernity] = useState('');
             const [loading, setLoading] = useState(false);
             const [result, setResult] = useState(null);
+            const loadingsound = useRef(new Audio('./sfx/loading_3.mp3'));
 
-            useEffect(() => {
-                fetchModels();
-            }, []);
-
-            const fetchModels = async () => {
-                try {
-                    const response = await fetch(`${API_BASE}/models`);
-                    const data = await response.json();
-                    if (data.success) {
-                        setModels(Object.keys(data.models));
+        useEffect(() => {
+            fetch(`${API_BASE}/models`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', response.headers);
+                    return response.text();
+                })
+                .then(text => {
+                    console.log('Raw response:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('Parsed JSON:', data);
+                        setModels(Object.keys(data.models || {}));
+                    } catch (e) {
+                        console.error('JSON parse error:', e);
                     }
-                } catch (error) {
-                    onNotification('error', 'Failed to fetch models');
-                }
-            };
+                })
+                .catch(error => console.error('Direct fetch test error:', error));
+        }, []);
 
             const handlePredict = async () => {
                 if (!selectedModel || !inputDRG || !inputSevernity) {
@@ -451,6 +456,8 @@
 
                 setLoading(true);
                 try {
+                    // Play loading sound
+                    loadingsound.current.play()
                     const payload = {
                         drg_code: inputDRG,
                         severity_code: inputSevernity
@@ -464,13 +471,23 @@
 
                     const result = await response.json();
 
+                    //give 5 seconds to play the sound
+                    await new Promise(resolve => setTimeout(resolve, 7000));
+
                     if (result.success) {
+                        // Stop loading sound
+                        loadingsound.current.pause();
+                        loadingsound.current.currentTime = 7.8;
+                        loadingsound.current.play();
                         setResult(result);
                         onNotification('success', 'Prediction completed!');
                     } else {
+                        loadingsound.current.pause();
                         onNotification('error', result.error || 'Prediction failed');
                     }
                 } catch (error) {
+                    await new Promise(resolve => setTimeout(resolve, 7000));
+                    loadingsound.current.pause();
                     onNotification('error', 'Network error or server issue');
                 } finally {
                     setLoading(false);
@@ -531,7 +548,7 @@
 
                         <button
                             onClick={handlePredict}
-                            disabled={loading || !selectedModel || !inputData}
+                            disabled={loading || !selectedModel || !inputDRG || !inputSevernity}
                             className="w-full bg-primary text-white py-3 rounded-lg hover:bg-secondary transition-colors disabled:opacity-50"
                         >
                             {loading ? 'Predicting...' : 'Predict'}
@@ -690,20 +707,25 @@
             const [loading, setLoading] = useState(false);
 
             useEffect(() => {
+                const fetchModels = async () => {
+                    setLoading(true);
+                    try {
+                        const response = await fetch(`${API_BASE}/models`);
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch models');
+                        }
+                        const data = await response.json();
+                        setModels(data.models || {});
+                    } catch (error) {
+                        onNotification('error', error.message || 'Failed to load models');
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
                 fetchModels();
             }, []);
 
-            const fetchModels = async () => {
-                try {
-                    const response = await fetch(`${API_BASE}/models`);
-                    const data = await response.json();
-                    if (data.success) {
-                        setModels(data.models);
-                    }
-                } catch (error) {
-                    onNotification('error', 'Failed to fetch models');
-                }
-            };
 
             const reloadModels = async () => {
                 setLoading(true);
@@ -860,8 +882,7 @@
                     const response = await fetch(`${API_BASE}/health`);
                     if (response.ok) {
                         setServerStatus('online');
-                        const infoResponse = await fetch(`${API_BASE}/`);
-                        const info = await infoResponse.json();
+                        const info = await response.json();
                         setServerInfo(info);
                     } else {
                         setServerStatus('error');
@@ -880,7 +901,6 @@
             const tabs = [
                 { id: 'smart-predict', label: 'Smart Prediction', icon: '🔮' },
                 { id: 'single-model', label: 'Single Model', icon: '🎯' },
-                { id: 'all-models', label: 'All Models', icon: '🎪' },
                 { id: 'models', label: 'Manage Models', icon: '🤖' },
                 { id: 'status', label: 'System Status', icon: '📊' }
             ];
